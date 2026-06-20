@@ -22,9 +22,13 @@ class ArchiveHit:
     content: str
     query: str
     fetched_at: str
+    stale: bool = False
+    age_days: int = 0
 
 
 class AssistantArchive:
+    STALE_AFTER_DAYS = 7
+
     def __init__(self, path: Path = ARCHIVE_PATH) -> None:
         self.path = path
         APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -103,14 +107,7 @@ class AssistantArchive:
                 (like, like, like, like, limit),
             ).fetchall()
         return [
-            ArchiveHit(
-                title=row["title"],
-                url=row["url"],
-                summary=row["summary"],
-                content=row["content"],
-                query=row["query"],
-                fetched_at=row["fetched_at"],
-            )
+            self._row_to_hit(row)
             for row in rows
         ]
 
@@ -147,14 +144,7 @@ class AssistantArchive:
             scored.append(
                 (
                     score,
-                    ArchiveHit(
-                        title=row["title"],
-                        url=row["url"],
-                        summary=row["summary"],
-                        content=row["content"],
-                        query=row["query"],
-                        fetched_at=row["fetched_at"],
-                    ),
+                    self._row_to_hit(row),
                 )
             )
 
@@ -171,3 +161,29 @@ class AssistantArchive:
         if left_norm == 0 or right_norm == 0:
             return 0.0
         return numerator / (left_norm * right_norm)
+
+    @classmethod
+    def _row_to_hit(cls, row) -> ArchiveHit:
+        fetched_at = row["fetched_at"]
+        age_days = cls._age_days(fetched_at)
+        return ArchiveHit(
+            title=row["title"],
+            url=row["url"],
+            summary=row["summary"],
+            content=row["content"],
+            query=row["query"],
+            fetched_at=fetched_at,
+            stale=age_days >= cls.STALE_AFTER_DAYS,
+            age_days=age_days,
+        )
+
+    @staticmethod
+    def _age_days(fetched_at: str) -> int:
+        try:
+            fetched = datetime.fromisoformat(fetched_at)
+        except ValueError:
+            return 9999
+        if fetched.tzinfo is None:
+            fetched = fetched.replace(tzinfo=UTC)
+        delta = datetime.now(UTC) - fetched.astimezone(UTC)
+        return max(0, delta.days)

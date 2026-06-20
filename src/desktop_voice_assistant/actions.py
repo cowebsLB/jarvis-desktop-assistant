@@ -9,11 +9,12 @@ import shutil
 import subprocess
 import webbrowser
 import winreg
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote_plus
 
 from .app_memory import AppMemoryStore
-from .config import Settings
+from .config import APP_DIR, Settings
 from .filesystem_actions import DesktopControl
 from .models import ActionResult, IntentResult, OpenTargetPreview
 from .response_style import ResponseStyle
@@ -34,6 +35,18 @@ class ActionExecutor:
             return self._type_text(intent.slots["text"])
         if intent.intent == "calculate":
             return self._calculate(intent.slots["expression"])
+        if intent.intent == "clipboard_copy":
+            return self._copy_selection()
+        if intent.intent == "clipboard_paste":
+            return self._paste_clipboard()
+        if intent.intent == "clipboard_read":
+            return self._read_clipboard()
+        if intent.intent == "clipboard_save_note":
+            return self._save_clipboard_to_note()
+        if intent.intent == "focus_target":
+            return self._focus_target(intent.slots["target"])
+        if intent.intent == "switch_window":
+            return self._switch_window(intent.slots.get("direction") or "next")
         if intent.intent == "open_target":
             return self._open_target(intent.slots["target"])
         if intent.intent == "open_folder":
@@ -111,6 +124,84 @@ class ActionExecutor:
             f"Calculated {normalized} = {rendered}",
             ResponseStyle.calculation(normalized, rendered),
         )
+
+    def _copy_selection(self) -> ActionResult:
+        pyautogui = self._get_pyautogui()
+        pyautogui.hotkey("ctrl", "c")
+        return ActionResult(True, "Copied current selection.", ResponseStyle.clipboard_copied())
+
+    def _paste_clipboard(self) -> ActionResult:
+        pyautogui = self._get_pyautogui()
+        pyautogui.hotkey("ctrl", "v")
+        return ActionResult(True, "Pasted clipboard contents.", ResponseStyle.clipboard_pasted())
+
+    def _read_clipboard(self) -> ActionResult:
+        text = self._get_clipboard_text()
+        if not text:
+            return ActionResult(False, "Clipboard is empty.", ResponseStyle.clipboard_empty())
+        return ActionResult(True, "Read clipboard contents.", text)
+
+    def _save_clipboard_to_note(self) -> ActionResult:
+        text = self._get_clipboard_text()
+        if not text:
+            return ActionResult(False, "Clipboard is empty.", ResponseStyle.clipboard_empty())
+        note_path = self._clipboard_note_path()
+        note_path.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        with note_path.open("a", encoding="utf-8") as handle:
+            handle.write(f"\n## {timestamp}\n\n{text.strip()}\n")
+        return ActionResult(
+            True,
+            f"Saved clipboard note to {note_path}",
+            ResponseStyle.clipboard_saved_note(),
+            opened_target=str(note_path),
+        )
+
+    def _focus_target(self, target: str) -> ActionResult:
+        spoken_target = self._normalize_target_name(target)
+        resolved_target = self.memory.resolve(spoken_target) or spoken_target
+        candidates = self._focus_candidate_names(resolved_target)
+        script = (
+            "$target=$args[0];"
+            "$candidateArg=$args[1];"
+            "$candidates=@();"
+            "if ($candidateArg) {$candidates=$candidateArg.Split(';')};"
+            "$proc=Get-Process | Where-Object { $_.MainWindowTitle -and ("
+            "$_.MainWindowTitle.ToLower().Contains($target) -or $candidates -contains $_.ProcessName.ToLower()) } | "
+            "Sort-Object @{Expression={ if ($_.MainWindowTitle.ToLower().Contains($target)) {0} else {1} }}, MainWindowTitle | "
+            "Select-Object -First 1;"
+            "if (-not $proc) { exit 3 };"
+            "$shell=New-Object -ComObject WScript.Shell;"
+            "if ($shell.AppActivate($proc.Id)) { Write-Output $proc.MainWindowTitle; exit 0 };"
+            "exit 4"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script, "--", resolved_target, ";".join(candidates)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return ActionResult(
+                False,
+                f"Could not focus target: {resolved_target}",
+                f"I couldn't find a visible window for {resolved_target}.",
+            )
+        self.memory.remember(spoken_target, resolved_target)
+        return ActionResult(
+            True,
+            f"Focused window: {resolved_target}",
+            ResponseStyle.focusing(resolved_target),
+            opened_target=resolved_target,
+        )
+
+    def _switch_window(self, direction: str) -> ActionResult:
+        pyautogui = self._get_pyautogui()
+        if direction == "previous":
+            pyautogui.hotkey("alt", "shift", "tab")
+        else:
+            pyautogui.hotkey("alt", "tab")
+        return ActionResult(True, f"Switched window: {direction}", ResponseStyle.switched_window(direction))
 
     def _open_target(self, target: str) -> ActionResult:
         spoken_target = self._normalize_target_name(target)
@@ -213,6 +304,43 @@ class ActionExecutor:
             pyautogui.FAILSAFE = True
             self._pyautogui = pyautogui
         return self._pyautogui
+
+    @staticmethod
+    def _get_clipboard_text() -> str:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            LOGGER.warning("Get-Clipboard failed: %s", result.stderr.strip())
+            return ""
+        return result.stdout.strip()
+
+    @staticmethod
+    def _clipboard_note_path() -> Path:
+        return APP_DIR / "clipboard-notes.md"
+
+    @classmethod
+    def _focus_candidate_names(cls, target: str) -> list[str]:
+        compact = target.replace(" ", "")
+        candidates = [target, compact]
+        if target == "visual studio code":
+            candidates.extend(["code"])
+        elif target == "calculator":
+            candidates.extend(["calculator", "calc"])
+        elif target == "chrome":
+            candidates.extend(["chrome"])
+        elif target == "notepad":
+            candidates.extend(["notepad"])
+
+        ordered: list[str] = []
+        for item in candidates:
+            lowered = item.lower()
+            if lowered and lowered not in ordered:
+                ordered.append(lowered)
+        return ordered
 
     @staticmethod
     def _launch_target(target: str, spoken_name: str) -> None:

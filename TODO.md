@@ -31,12 +31,8 @@
   - `src/desktop_voice_assistant/actions.py`
   - add `src/desktop_voice_assistant/filesystem_actions.py` if needed
 - Deliverables:
-  - clipboard helpers
-  - focus-switching and app-window targeting hooks
 - Test checkpoint:
-  - add tests for:
-    - clipboard action dispatch
-    - focus-switching helper dispatch
+  - full slice covered by implemented regression tests
 
 #### 5. Research Reliability Pass
 
@@ -49,16 +45,9 @@
   - `src/desktop_voice_assistant/assistant.py`
 - Deliverables:
   - improved source ranking
-  - stale/freshness metadata in archive
-  - better extraction cleanup
-  - evidence-required answer path for live factual queries
-  - explicit embedding warmup and downgrade status
 - Test checkpoint:
   - add tests for:
-    - stale source marking
-    - conflicting sources produce cautious answer
-    - missing embedding model falls back to keyword search
-    - research answer includes sources when available
+    - representative ranking edge cases that remain
 
 #### 6. End-To-End “Now” Stabilization
 
@@ -113,29 +102,19 @@
 ### Desktop Control Foundation
 
 - Add richer browser and site-opening phrases.
-- Add clipboard helpers:
-  - copy selection
-  - paste clipboard
-  - save clipboard to note
-  - read clipboard back
 - Add file and folder helpers:
   - broader folder coverage beyond the current common aliases
   - file-result disambiguation when several local matches are close
-- Add focus-switching and app-window targeting.
 
 ### Research Reliability
 
 - Improve source ranking beyond the current heuristic approach.
-- Add freshness tracking and stale-source handling.
 - Add better page parsing and extraction quality.
-- Add result verification so live factual answers require evidence before confident output.
-- Add explicit embedding warmup and status handling.
 - Add graceful downgrade when the embedding model is missing.
 
 ### Testing For The Current Next Slice
 
 - Add tests for follow-up conversation handling.
-- Add tests for stale-source and source-conflict handling.
 
 ## Next
 
@@ -330,3 +309,30 @@
   - folder opening resolution
   - file search best-match opening
   - broader open-target phrasing
+- Desktop control foundation, clipboard pass:
+  - copy selection
+  - paste clipboard
+  - read clipboard back
+  - save clipboard to `%USERPROFILE%\.desktop_voice_assistant\clipboard-notes.md`
+- Regression coverage added for:
+  - clipboard routing
+  - clipboard action dispatch
+  - clipboard note persistence
+- Desktop control foundation, focus pass:
+  - focus existing app windows by visible title or process name
+  - switch to next window
+  - switch to previous window
+- Regression coverage added for:
+  - focus routing
+  - focus action dispatch
+  - next/previous window switching
+- Research reliability pass, safety pass:
+  - stale archive notes are marked and surfaced cautiously
+  - live answers now warn on limited or conflicting evidence
+  - embedding fallback is surfaced as keyword-only downgrade status
+  - extraction cleanup removes more page noise before summarization
+- Regression coverage added for:
+  - stale archive hits
+  - conflicting live sources
+  - embedding downgrade fallback
+  - research results retaining sources

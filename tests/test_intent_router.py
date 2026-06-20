@@ -13,6 +13,50 @@ def test_route_dictation_with_extra_words() -> None:
     assert result.slots["text"] == "hello world"
 
 
+def test_route_clipboard_copy() -> None:
+    result = IntentRouter().route("Copy selection")
+    assert result.intent == "clipboard_copy"
+
+
+def test_route_clipboard_paste() -> None:
+    result = IntentRouter().route("Paste clipboard")
+    assert result.intent == "clipboard_paste"
+
+
+def test_route_clipboard_read() -> None:
+    result = IntentRouter().route("What's on my clipboard")
+    assert result.intent == "clipboard_read"
+
+
+def test_route_clipboard_save_note() -> None:
+    result = IntentRouter().route("Save clipboard to note")
+    assert result.intent == "clipboard_save_note"
+
+
+def test_route_focus_target() -> None:
+    result = IntentRouter().route("Switch to notepad")
+    assert result.intent == "focus_target"
+    assert result.slots["target"] == "notepad"
+
+
+def test_route_focus_target_with_focus_phrase() -> None:
+    result = IntentRouter().route("Focus on chrome")
+    assert result.intent == "focus_target"
+    assert result.slots["target"] == "chrome"
+
+
+def test_route_switch_window_next() -> None:
+    result = IntentRouter().route("Switch window")
+    assert result.intent == "switch_window"
+    assert result.slots["direction"] == "next"
+
+
+def test_route_switch_window_previous() -> None:
+    result = IntentRouter().route("Switch back")
+    assert result.intent == "switch_window"
+    assert result.slots["direction"] == "previous"
+
+
 def test_route_open_target() -> None:
     result = IntentRouter().route("Open notepad")
     assert result.intent == "open_target"

@@ -33,7 +33,13 @@
 ### Intent Routing
 
 - `dictate`
+- `clipboard_copy`
+- `clipboard_paste`
+- `clipboard_read`
+- `clipboard_save_note`
 - `calculate`
+- `focus_target`
+- `switch_window`
 - `open_target`
 - `open_folder`
 - `open_file`
@@ -64,7 +70,13 @@ Current normalization handles:
 ### Desktop Actions
 
 - type text into the active window
+- copy the current selection with `Ctrl+C`
+- paste clipboard contents with `Ctrl+V`
+- read current clipboard text back aloud
+- save current clipboard text to a local note file
 - calculate local arithmetic expressions with spoken results
+- focus a visible app window by name or title
+- switch to the next or previous desktop window
 - open allowlisted apps
 - open many installed apps even when they are not in the explicit allowlist
 - app discovery currently uses:
@@ -89,6 +101,7 @@ Current normalization handles:
   - `go to`
   - `visit`
 - browser opening still works when explicitly needed
+- clipboard notes are stored under `%USERPROFILE%\.desktop_voice_assistant\clipboard-notes.md`
 
 ### Direct Web Research
 
@@ -99,6 +112,9 @@ Current normalization handles:
   - summarizes the findings aloud
   - stores the material locally for later recall
 - research answers append a brief offer to open sources if needed
+- live answers now add caution when:
+  - evidence is limited
+  - live sources appear to conflict
 
 ### Local Research Archive
 
@@ -107,6 +123,8 @@ Current normalization handles:
 - can answer later follow-up questions from stored notes
 - supports recall prompts like `summarize python testing`
 - stores local embeddings for semantic recall when the embedding model is available
+- stored hits now expose freshness metadata so older notes can be marked stale in recall
+- semantic retrieval now degrades explicitly to keyword-only mode when embeddings are unavailable
 
 ### Weather
 
@@ -210,7 +228,7 @@ Current normalization handles:
 ### Verification Baseline
 
 - automated test suite currently passes:
-  - `52/52`
+  - `74/74`
 
 ## Implemented But Limited
 
@@ -238,6 +256,8 @@ Current normalization handles:
 - still rule-based
 - can miss malformed or heavily mis-transcribed speech
 - app names and app-launch phrases are improved, but multi-step spoken tasks are still out of scope
+- clipboard phrasing currently covers a narrow command set
+- focus phrasing currently covers direct commands such as `switch to notepad` and `switch back`
 - follow-up handling is narrow and pattern-based, not general conversational reasoning yet
 
 ### Web Research Limits
@@ -245,6 +265,7 @@ Current normalization handles:
 - current search and scrape path is intentionally simple
 - source ranking is heuristic, not full agentic planning yet
 - semantic recall depends on the local embedding model being available and warmed
+- live conflict detection is heuristic, not source-verified reasoning
 
 ### Assistant Personality
 

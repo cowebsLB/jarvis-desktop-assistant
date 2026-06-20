@@ -3,6 +3,32 @@ from __future__ import annotations
 
 class ResponseStyle:
     @staticmethod
+    def focusing(target: str) -> str:
+        return f"Focusing {target}."
+
+    @staticmethod
+    def switched_window(direction: str) -> str:
+        if direction == "previous":
+            return "Switching to the previous window."
+        return "Switching to the next window."
+
+    @staticmethod
+    def clipboard_copied() -> str:
+        return "Copied."
+
+    @staticmethod
+    def clipboard_pasted() -> str:
+        return "Pasted."
+
+    @staticmethod
+    def clipboard_empty() -> str:
+        return "The clipboard is empty."
+
+    @staticmethod
+    def clipboard_saved_note() -> str:
+        return "Saved the clipboard to your notes."
+
+    @staticmethod
     def calculation(expression: str, result: str) -> str:
         return f"{expression} equals {result}."
 

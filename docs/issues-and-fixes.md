@@ -395,6 +395,68 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Fix type:
   - `Permanent`
 
+### 33. Desktop control still lacked basic clipboard commands
+
+- Symptom:
+  - Jarvis could open apps and files, but could not copy, paste, read the clipboard, or store clipboard text for later
+- Root cause:
+  - the desktop action layer had no clipboard command path or local note sink
+- Resolution:
+  - added clipboard intents for copy, paste, read, and save-to-note
+  - wired copy and paste through safe keyboard shortcuts
+  - added clipboard text retrieval and local note storage under the assistant data directory
+- Fix type:
+  - `Partial`
+
+### 34. Desktop control still could not target the currently open window stack
+
+- Symptom:
+  - Jarvis could open apps, but it could not focus an already open app window or switch between current windows
+- Root cause:
+  - the desktop action layer had no focus-target or window-cycling path
+- Resolution:
+  - added focus-by-title or process-name matching for visible windows
+  - added next-window and previous-window switching hooks
+  - covered the routing and dispatch behavior with tests
+- Fix type:
+  - `Partial`
+
+### 35. Research answers were too confident when evidence was weak
+
+- Symptom:
+  - live web answers could sound definitive even when only one usable page was fetched or when source details disagreed
+- Root cause:
+  - the research summarization path did not add any explicit evidence-quality note before speaking the answer
+- Resolution:
+  - added limited-evidence and conflict-caution notes for live research answers
+  - kept source lists attached so the assistant can still open or cite what it used
+- Fix type:
+  - `Partial`
+
+### 36. Archive recall hid how old stored notes were
+
+- Symptom:
+  - recalled answers from old research looked the same as fresh notes, even when the stored fetch was stale
+- Root cause:
+  - the archive stored timestamps, but recall did not surface freshness metadata
+- Resolution:
+  - added stale and age-day metadata on archive hits
+  - added stale-note warnings in recall responses when stored material is old
+- Fix type:
+  - `Partial`
+
+### 37. Embedding failure degraded retrieval silently
+
+- Symptom:
+  - semantic recall could stop working when the local embedding model failed, with no explicit signal that the system had fallen back
+- Root cause:
+  - embedding calls returned `None`, but the research flow did not surface the downgrade
+- Resolution:
+  - tracked embedding warm and error status
+  - surfaced keyword-only fallback messaging when embeddings are unavailable
+- Fix type:
+  - `Permanent`
+
 ## Current Open Issues
 
 ### Speech mis-transcription remains a source of failure
@@ -415,3 +477,32 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Notes:
   - opening apps is supported
   - chained in-app actions are not yet implemented
+
+### Clipboard phrasing is still narrow
+
+- Example:
+  - unusual variants like `stash this in my notes` may not route to clipboard note saving
+- Status:
+  - open
+- Notes:
+  - the current router covers direct clipboard phrases only
+
+### Window targeting is still heuristic
+
+- Example:
+  - several windows from the same app may produce the wrong focus choice
+- Status:
+  - open
+- Notes:
+  - current focusing prefers visible title/process matches only
+  - richer window disambiguation is still future work
+
+### Live source ranking is still heuristic
+
+- Example:
+  - two mediocre pages may outrank a more authoritative page because the current ranking path is fetch-order plus simple conflict cues
+- Status:
+  - open
+- Notes:
+  - evidence handling is safer now
+  - authority-aware ranking is still future work

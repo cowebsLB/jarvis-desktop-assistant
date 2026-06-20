@@ -14,6 +14,24 @@ class IntentRouter:
             dictated_text = self._extract_after_command(text, match.group(1))
             return IntentResult("dictate", 0.99, {"text": dictated_text})
 
+        if self._is_clipboard_copy_request(normalized):
+            return IntentResult("clipboard_copy", 0.95, {})
+
+        if self._is_clipboard_paste_request(normalized):
+            return IntentResult("clipboard_paste", 0.95, {})
+
+        if self._is_clipboard_read_request(normalized):
+            return IntentResult("clipboard_read", 0.95, {})
+
+        if self._is_clipboard_save_request(normalized):
+            return IntentResult("clipboard_save_note", 0.95, {})
+
+        if direction := self._extract_window_switch_direction(normalized):
+            return IntentResult("switch_window", 0.95, {"direction": direction})
+
+        if focus_target := self._extract_focus_target(normalized):
+            return IntentResult("focus_target", 0.94, {"target": focus_target})
+
         if expression := self._extract_calculation_expression(normalized):
             return IntentResult("calculate", 0.96, {"expression": expression})
 
@@ -176,3 +194,76 @@ class IntentRouter:
         if any(term in candidate for term in math_terms):
             return True
         return bool(re.fullmatch(r"[-\d\s\.\+\*\/%\(\)]+", candidate))
+
+    @staticmethod
+    def _extract_window_switch_direction(text: str) -> str | None:
+        next_commands = {
+            "next window",
+            "switch window",
+            "switch to next window",
+            "focus next window",
+        }
+        previous_commands = {
+            "previous window",
+            "last window",
+            "switch to previous window",
+            "focus previous window",
+            "switch back",
+        }
+        if text in next_commands:
+            return "next"
+        if text in previous_commands:
+            return "previous"
+        return None
+
+    @staticmethod
+    def _extract_focus_target(text: str) -> str | None:
+        patterns = (
+            r"^(?:focus on|switch to|bring up)\s+(.+)$",
+            r"^(?:focus|activate)\s+(.+)$",
+        )
+        for pattern in patterns:
+            if match := re.search(pattern, text):
+                candidate = match.group(1).strip()
+                if candidate not in {"next window", "previous window", "last window"}:
+                    return candidate
+        return None
+
+    @staticmethod
+    def _is_clipboard_copy_request(text: str) -> bool:
+        return text in {
+            "copy that",
+            "copy this",
+            "copy selection",
+            "copy the selection",
+            "copy selected text",
+        }
+
+    @staticmethod
+    def _is_clipboard_paste_request(text: str) -> bool:
+        return text in {
+            "paste",
+            "paste that",
+            "paste it",
+            "paste clipboard",
+            "paste the clipboard",
+        }
+
+    @staticmethod
+    def _is_clipboard_read_request(text: str) -> bool:
+        return text in {
+            "read clipboard",
+            "read the clipboard",
+            "what is on my clipboard",
+            "whats on my clipboard",
+            "what's on my clipboard",
+        }
+
+    @staticmethod
+    def _is_clipboard_save_request(text: str) -> bool:
+        return text in {
+            "save clipboard to note",
+            "save the clipboard to note",
+            "save clipboard as note",
+            "save this clipboard to note",
+        }

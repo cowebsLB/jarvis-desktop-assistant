@@ -15,6 +15,7 @@
 - also used to summarize scraped web results and answer from stored archive context
 - also used for local archive embeddings through:
   - `nomic-embed-text`
+- embedding availability is now surfaced as runtime downgrade status rather than failing silently
 
 ### requests
 
@@ -127,7 +128,7 @@
 - path:
   - `%USERPROFILE%\\.desktop_voice_assistant\\assistant.db`
 - purpose:
-  - store fetched web pages, snippets, summaries, original search queries, and semantic embeddings for later reuse
+  - store fetched web pages, snippets, summaries, original search queries, freshness timestamps, and semantic embeddings for later reuse
 - format:
   - local SQLite database
 

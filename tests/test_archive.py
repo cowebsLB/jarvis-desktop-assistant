@@ -38,3 +38,22 @@ def test_archive_semantic_search_returns_best_match(tmp_path: Path) -> None:
 
     assert len(hits) == 1
     assert hits[0].title == "Pytest docs"
+
+
+def test_archive_marks_old_hits_as_stale(tmp_path: Path) -> None:
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    archive.store_sources(
+        "python testing",
+        [ResearchSource(title="Pytest docs", url="https://example.com/pytest", snippet="Testing framework")],
+        {"https://example.com/pytest": "Pytest is a Python testing framework."},
+    )
+    with archive._connect() as connection:
+        connection.execute(
+            "UPDATE web_pages SET fetched_at = ? WHERE url = ?",
+            ("2020-01-01T00:00:00+00:00", "https://example.com/pytest"),
+        )
+
+    hits = archive.search("python", limit=1)
+
+    assert len(hits) == 1
+    assert hits[0].stale is True

@@ -93,6 +93,128 @@ def test_calculate_expression_returns_result() -> None:
     assert result.message.endswith("= 4")
 
 
+def test_clipboard_copy_dispatches_ctrl_c(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    pressed: list[tuple[str, str]] = []
+
+    class FakePyAutoGui:
+        def hotkey(self, *keys) -> None:
+            pressed.append(keys)
+
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+
+    result = action.execute(IntentResult("clipboard_copy", 0.95, {}))
+    assert result.success
+    assert pressed == [("ctrl", "c")]
+
+
+def test_clipboard_paste_dispatches_ctrl_v(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    pressed: list[tuple[str, str]] = []
+
+    class FakePyAutoGui:
+        def hotkey(self, *keys) -> None:
+            pressed.append(keys)
+
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+
+    result = action.execute(IntentResult("clipboard_paste", 0.95, {}))
+    assert result.success
+    assert pressed == [("ctrl", "v")]
+
+
+def test_clipboard_read_returns_text(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_get_clipboard_text", lambda: "clipboard contents")
+
+    result = action.execute(IntentResult("clipboard_read", 0.95, {}))
+    assert result.success
+    assert result.spoken_reply == "clipboard contents"
+
+
+def test_clipboard_save_note_writes_file(monkeypatch, tmp_path: Path) -> None:
+    action = ActionExecutor(Settings())
+    note_path = tmp_path / "clipboard-notes.md"
+    monkeypatch.setattr(action, "_get_clipboard_text", lambda: "remember this")
+    monkeypatch.setattr(action, "_clipboard_note_path", lambda: note_path)
+
+    result = action.execute(IntentResult("clipboard_save_note", 0.95, {}))
+    assert result.success
+    assert note_path.exists()
+    assert "remember this" in note_path.read_text(encoding="utf-8")
+
+
+def test_clipboard_save_note_handles_empty_clipboard(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_get_clipboard_text", lambda: "")
+
+    result = action.execute(IntentResult("clipboard_save_note", 0.95, {}))
+    assert not result.success
+    assert "clipboard is empty" in result.message.lower()
+
+
+def test_focus_target_activates_visible_window(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+
+    class FakeCompletedProcess:
+        def __init__(self) -> None:
+            self.returncode = 0
+            self.stdout = "Notepad"
+            self.stderr = ""
+
+    monkeypatch.setattr("subprocess.run", lambda *args, **kwargs: FakeCompletedProcess())
+
+    result = action.execute(IntentResult("focus_target", 0.94, {"target": "notepad"}))
+    assert result.success
+    assert "focused window" in result.message.lower()
+
+
+def test_focus_target_returns_safe_failure_when_missing(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+
+    class FakeCompletedProcess:
+        def __init__(self) -> None:
+            self.returncode = 3
+            self.stdout = ""
+            self.stderr = ""
+
+    monkeypatch.setattr("subprocess.run", lambda *args, **kwargs: FakeCompletedProcess())
+
+    result = action.execute(IntentResult("focus_target", 0.94, {"target": "notepad"}))
+    assert not result.success
+    assert "couldn't find a visible window" in result.spoken_reply.lower()
+
+
+def test_switch_window_next_dispatches_alt_tab(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    pressed: list[tuple[str, ...]] = []
+
+    class FakePyAutoGui:
+        def hotkey(self, *keys) -> None:
+            pressed.append(keys)
+
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+
+    result = action.execute(IntentResult("switch_window", 0.95, {"direction": "next"}))
+    assert result.success
+    assert pressed == [("alt", "tab")]
+
+
+def test_switch_window_previous_dispatches_reverse_alt_tab(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    pressed: list[tuple[str, ...]] = []
+
+    class FakePyAutoGui:
+        def hotkey(self, *keys) -> None:
+            pressed.append(keys)
+
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+
+    result = action.execute(IntentResult("switch_window", 0.95, {"direction": "previous"}))
+    assert result.success
+    assert pressed == [("alt", "shift", "tab")]
+
+
 def test_open_folder_uses_known_alias(monkeypatch, tmp_path: Path) -> None:
     settings = Settings()
     action = ActionExecutor(settings)

@@ -26,11 +26,14 @@ This project is building toward a practical desktop assistant that feels convers
 
 - Wake on `hey jarvis`
 - Type into the focused window
+- Copy, paste, read, and save clipboard contents
+- Focus an existing app window or cycle to the next or previous window
 - Open installed apps, allowlisted sites, common folders, and matched local files
 - Handle broader launch phrasing such as `open`, `launch`, `start`, `go to`, and `visit`
 - Answer weather questions
 - Calculate expressions locally
 - Research the web without forcing a browser-first flow
+- Answer more cautiously when live evidence is thin, conflicting, or archive notes are stale
 - Reuse recent context for follow-ups like `open it`, `summarize that`, and `search again`
 - Ask for clarification or confirmation when the target is ambiguous
 
@@ -41,6 +44,10 @@ Hey Jarvis, open notepad
 Hey Jarvis, visit youtube
 Hey Jarvis, open downloads folder
 Hey Jarvis, open file budget report
+Hey Jarvis, what's on my clipboard
+Hey Jarvis, save clipboard to note
+Hey Jarvis, switch to notepad
+Hey Jarvis, switch back
 Hey Jarvis, calculate two plus two
 Hey Jarvis, what's the weather in Beirut
 Hey Jarvis, search the web for python testing best practices
@@ -121,12 +128,10 @@ Implemented now:
 - Structured history and explicit runtime states
 - Follow-up memory for short conversational chains
 - Clarification and confirmation for ambiguous actions
-- First-pass desktop control for apps, folders, files, and calculations
+- First-pass desktop control for apps, folders, files, clipboard helpers, and calculations
 
 Still in progress:
 
-- Clipboard helpers
-- Better window targeting and focus switching
 - Richer multi-step desktop workflows
 - Long-term conversational memory
 - Custom wake words
@@ -157,7 +162,7 @@ Run the test suite with:
 python -m pytest
 ```
 
-Current baseline: `52/52` passing tests.
+Current baseline: `74/74` passing tests.
 
 ## Local Data
 
@@ -167,6 +172,7 @@ Important files:
 
 - `settings.json`: runtime settings
 - `assistant.db`: archived research
+- `clipboard-notes.md`: saved clipboard notes
 - `history.jsonl`: structured request and state history
 - `assistant.log`: runtime log output
 
