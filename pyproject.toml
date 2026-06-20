@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "desktop-voice-assistant"
+version = "0.1.0"
+description = "Local Windows desktop voice assistant MVP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "faster-whisper>=1.1.1",
+  "ollama>=0.4.7",
+  "pillow>=10.4.0",
+  "pyautogui>=0.9.54",
+  "pystray>=0.19.5",
+  "pyttsx3>=2.98",
+  "requests>=2.32.3",
+  "sounddevice>=0.5.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.2",
+]
+wakeword = [
+  "openwakeword>=0.6.0",
+]
+
+[project.scripts]
+dva = "desktop_voice_assistant.app:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

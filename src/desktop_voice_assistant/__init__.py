@@ -1,0 +1,2 @@
+"""Desktop voice assistant package."""
+
