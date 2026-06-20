@@ -147,6 +147,7 @@ This repo is intentionally conservative for voice-triggered local actions.
 - [Feature map](docs/features.md)
 - [Issues and fixes](docs/issues-and-fixes.md)
 - [Roadmap](docs/roadmap.md)
+- [Contributing guide](CONTRIBUTING.md)
 
 ## Testing
 
@@ -177,6 +178,8 @@ This repo is still early-stage and Windows-first. If you contribute, keep change
 - explicit about safety boundaries
 - covered by tests when behavior changes
 - reflected in the docs under [`docs/`](docs/README.md)
+
+For the full workflow and contribution expectations, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Notes
 

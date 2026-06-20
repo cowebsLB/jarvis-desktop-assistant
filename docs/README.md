@@ -18,6 +18,7 @@ Use it to track:
 - `apis-and-dependencies.md`: local runtimes, third-party APIs, and external assets
 - `issues-and-fixes.md`: bug history, root cause, resolution, and fix durability
 - `roadmap.md`: planned work and future additions
+- `../CONTRIBUTING.md`: repo workflow and contribution expectations
 
 ## Update Rules
 
@@ -29,6 +30,14 @@ When new work is done later:
 4. Move items in `roadmap.md` from planned to implemented when they ship.
 
 Documentation updates are part of the definition of done for this project.
+
+## Repo Hygiene
+
+The repo now also includes public GitHub collaboration scaffolding:
+
+- issue templates for bugs and feature requests
+- a pull request template
+- a root `CONTRIBUTING.md`
 
 ## Current State
 
