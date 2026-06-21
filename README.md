@@ -167,7 +167,7 @@ Run the test suite with:
 python -m pytest
 ```
 
-Current baseline: `87/87` passing tests.
+Current baseline: `92/92` passing tests.
 
 ## Local Data
 

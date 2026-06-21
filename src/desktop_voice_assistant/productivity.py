@@ -180,6 +180,21 @@ class ProductivityManager:
             self.tasks.clear()
             self._save_state()
 
+    def clear_timers(self) -> None:
+        with self.lock:
+            self.timers.clear()
+            self._save_state()
+
+    def clear_reminders(self) -> None:
+        with self.lock:
+            self.reminders.clear()
+            self._save_state()
+
+    def clear_alarms(self) -> None:
+        with self.lock:
+            self.alarms.clear()
+            self._save_state()
+
     # --- Scheduler Thread Loop ---
 
     def _scheduler_loop(self) -> None:

@@ -255,6 +255,18 @@ class DesktopAssistant:
             self.productivity.clear_tasks()
             msg = "Task list cleared."
             result = ActionResult(True, msg, msg)
+        elif intent.intent == "clear_timers":
+            self.productivity.clear_timers()
+            msg = "Timers cleared."
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "clear_reminders":
+            self.productivity.clear_reminders()
+            msg = "Reminders cleared."
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "clear_alarms":
+            self.productivity.clear_alarms()
+            msg = "Alarms cleared."
+            result = ActionResult(True, msg, msg)
         elif intent.intent == "take_note":
             from pathlib import Path
             note_text = intent.slots["text"]

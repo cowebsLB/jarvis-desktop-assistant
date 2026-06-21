@@ -88,6 +88,30 @@ class CapabilityRegistry:
             examples=["clear my task list", "delete all tasks", "empty my tasks"]
         ))
 
+        # clear_timers
+        self.register(Capability(
+            intent="clear_timers",
+            description="Clear or cancel all active countdown timers.",
+            slots=[],
+            examples=["clear my timers", "remove all timers", "cancel timers"]
+        ))
+
+        # clear_reminders
+        self.register(Capability(
+            intent="clear_reminders",
+            description="Clear or cancel all active spoken task reminders.",
+            slots=[],
+            examples=["clear my reminders", "remove all reminders", "cancel reminders"]
+        ))
+
+        # clear_alarms
+        self.register(Capability(
+            intent="clear_alarms",
+            description="Clear or cancel all active clock alarms.",
+            slots=[],
+            examples=["clear my alarms", "remove all alarms", "cancel alarms"]
+        ))
+
         # take_note
         self.register(Capability(
             intent="take_note",

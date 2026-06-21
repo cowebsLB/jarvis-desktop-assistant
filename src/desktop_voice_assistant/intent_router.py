@@ -10,21 +10,34 @@ class IntentRouter:
         text = transcript.strip()
         normalized = self._normalize_text(text)
 
+        # Clear timers/reminders/alarms
+        if re.search(r"\b(?:clear|remove|delete|cancel)\s+(?:all\s+|the\s+|my\s+)*(?:timer|timers)\b", normalized):
+            return IntentResult("clear_timers", 0.95, {})
+        if re.search(r"\b(?:clear|remove|delete|cancel)\s+(?:all\s+|the\s+|my\s+)*(?:reminder|reminders)\b", normalized):
+            return IntentResult("clear_reminders", 0.95, {})
+        if re.search(r"\b(?:clear|remove|delete|cancel)\s+(?:all\s+|the\s+|my\s+)*(?:alarm|alarms)\b", normalized):
+            return IntentResult("clear_alarms", 0.95, {})
+
         # Timers
         if match := re.search(r"\b(?:set|start)?\s*(?:a)?\s*timer\s+(?:for\s+)?(\d+)\s*(second|sec|minute|min|hour|hr)s?\b", normalized):
-            return IntentResult("set_timer", 0.95, {"duration": match.group(1), "unit": match.group(2)})
+            if not any(word in normalized for word in ("remove", "delete", "clear", "cancel")):
+                return IntentResult("set_timer", 0.95, {"duration": match.group(1), "unit": match.group(2)})
 
         # Reminders
         if match := re.search(r"\b(?:set\s+a\s+)?reminder\s+(?:to\s+|for\s+)?(.+?)\s+in\s+(\d+)\s*(second|sec|minute|min|hour|hr)s?\b", normalized):
-            return IntentResult("set_reminder", 0.95, {"text": match.group(1).strip(), "duration": match.group(2), "unit": match.group(3)})
+            if not any(word in normalized for word in ("remove", "delete", "clear", "cancel")):
+                return IntentResult("set_reminder", 0.95, {"text": match.group(1).strip(), "duration": match.group(2), "unit": match.group(3)})
         if match := re.search(r"\bremind\s+me\s+to\s+(.+?)\s+in\s+(\d+)\s*(second|sec|minute|min|hour|hr)s?\b", normalized):
-            return IntentResult("set_reminder", 0.95, {"text": match.group(1).strip(), "duration": match.group(2), "unit": match.group(3)})
+            if not any(word in normalized for word in ("remove", "delete", "clear", "cancel")):
+                return IntentResult("set_reminder", 0.95, {"text": match.group(1).strip(), "duration": match.group(2), "unit": match.group(3)})
 
         # Alarms
         if match := re.search(r"\b(?:set\s+an\s+)?alarm\s+(?:for\s+)?(\d{1,2}):(\d{2})\s*(am|pm)?\b", normalized):
-            return IntentResult("set_alarm", 0.95, {"hour": match.group(1), "minute": match.group(2), "period": match.group(3) or ""})
+            if not any(word in normalized for word in ("remove", "delete", "clear", "cancel")):
+                return IntentResult("set_alarm", 0.95, {"hour": match.group(1), "minute": match.group(2), "period": match.group(3) or ""})
         if match := re.search(r"\b(?:set\s+an\s+)?alarm\s+(?:for\s+)?(\d{1,2})\s*(am|pm)\b", normalized):
-            return IntentResult("set_alarm", 0.95, {"hour": match.group(1), "minute": "00", "period": match.group(2)})
+            if not any(word in normalized for word in ("remove", "delete", "clear", "cancel")):
+                return IntentResult("set_alarm", 0.95, {"hour": match.group(1), "minute": "00", "period": match.group(2)})
 
         # Tasks
         if match := re.search(r"\badd\s+(.+?)\s+to\s+(?:my\s+)?(?:task\s+list|tasks)\b", normalized):
@@ -132,7 +145,7 @@ class IntentRouter:
     @staticmethod
     def _normalize_text(text: str) -> str:
         normalized = text.lower().strip()
-        normalized = re.sub(r"[,\.!]+", " ", normalized)
+        normalized = re.sub(r"[,\.!\?]+", " ", normalized)
         normalized = re.sub(r"\s+", " ", normalized)
         normalized = re.sub(r"^(hey|okay|ok)\s+jarvis\b", "", normalized).strip()
         normalized = re.sub(
@@ -149,9 +162,9 @@ class IntentRouter:
         match = re.search(rf"\b{re.escape(command)}\b(.+)$", original_text, re.IGNORECASE)
         if not match:
             return original_text.strip()
-        extracted = match.group(1).strip(" ,.!")
+        extracted = match.group(1).strip(" ,.!?")
         extracted = re.sub(r"\b(please|for me|right now)\b", "", extracted, flags=re.IGNORECASE)
-        return re.sub(r"\s+", " ", extracted).strip(" ,.!")
+        return re.sub(r"\s+", " ", extracted).strip(" ,.!?")
 
     @staticmethod
     def _is_time_sensitive_search(text: str) -> bool:

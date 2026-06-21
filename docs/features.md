@@ -245,7 +245,7 @@ Current normalization handles:
 
 ### Capability Registry & LLM Fallback Routing
 
-- Centralized capabilities registry detailing all 30 intents, descriptions, required/optional slots, and query examples.
+- Centralized capabilities registry detailing all 33 intents, descriptions, required/optional slots, and query examples.
 - Injects capability registry schema and examples directly into the LLM system prompt in [llm.py](file:///C:/Users/user/OneDrive/Documents/projects/Desktop%20voice%20assitant/src/desktop_voice_assistant/llm.py).
 - Implements LLM-based intent routing in `OllamaAssistant` to parse user queries into structured intents and slots using the capability schema.
 - Automatic routing fallback in `DesktopAssistant` when the regex-based `IntentRouter` returns `unsupported`.
@@ -254,7 +254,7 @@ Current normalization handles:
 ### Verification Baseline
 
 - automated test suite currently passes:
-  - `87/87`
+  - `92/92`
 
 ## Implemented But Limited
 

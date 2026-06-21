@@ -146,3 +146,29 @@ def test_route_unsupported() -> None:
 def test_normalize_for_followup() -> None:
     normalized = IntentRouter().normalize_for_followup("Hey Jarvis, please open it for me")
     assert normalized == "open it"
+
+
+def test_route_clear_timers() -> None:
+    result = IntentRouter().route("Remove all timers")
+    assert result.intent == "clear_timers"
+
+
+def test_route_clear_reminders() -> None:
+    result = IntentRouter().route("Cancel reminders")
+    assert result.intent == "clear_reminders"
+
+
+def test_route_clear_alarms() -> None:
+    result = IntentRouter().route("delete all alarms")
+    assert result.intent == "clear_alarms"
+
+
+def test_route_open_with_question_mark() -> None:
+    result = IntentRouter().route("Can you open VS Code?")
+    assert result.intent == "open_target"
+    assert result.slots["target"] == "vs code"
+
+
+def test_route_timer_cancel_instead_of_set() -> None:
+    result = IntentRouter().route("Can you remove the timer for 10 minutes?")
+    assert result.intent == "clear_timers"
