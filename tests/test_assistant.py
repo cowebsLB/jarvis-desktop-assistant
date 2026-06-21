@@ -570,5 +570,37 @@ def test_llm_intent_routing_fallback() -> None:
     assistant.productivity.stop()
 
 
+def test_destructive_request_requires_confirmation() -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    action = ActionExecutor(Settings())
+    assistant = DesktopAssistant(
+        Settings(conversation_followup_seconds=45),
+        IntentRouter(),
+        action,
+        SequenceSTT(["clear my task list", "yes"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
+
+    first = assistant.listen_and_handle()
+    assistant.productivity.clear_tasks()
+    assert not first.success
+    assert "are you sure you want to clear tasks" in first.spoken_reply.lower()
+    assert assistant.session.snapshot.pending_confirmation is not None
+
+    assistant.productivity.add_task("test task")
+    assert len(assistant.productivity.list_tasks()) == 1
+
+    second = assistant.listen_and_handle()
+    assert second.success
+    assert "task list cleared" in second.message.lower()
+    assert len(assistant.productivity.list_tasks()) == 0
+    assert assistant.session.snapshot.pending_confirmation is None
+    assistant.productivity.stop()
+
+
 
 

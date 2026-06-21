@@ -172,6 +172,7 @@ Current normalization handles:
   - `open that`
   - `summarize that`
 - fuzzy app-name recovery now asks for confirmation before launch
+- destructive actions (such as clearing tasks, timers, reminders, and alarms) now prompt for explicit user confirmation before executing
 - confirmation responses currently supported:
   - `yes`
   - `yeah`

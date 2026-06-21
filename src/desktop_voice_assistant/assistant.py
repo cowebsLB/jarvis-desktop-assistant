@@ -206,6 +206,11 @@ class DesktopAssistant:
 
         if intent.intent == "confirmation_cancelled":
             result = ActionResult(True, "Pending action cancelled.", "Very well. Cancelled.")
+        elif intent.intent in {"clear_tasks", "clear_timers", "clear_reminders", "clear_alarms"} and intent.slots.get("_confirmed") != "true":
+            action_name = intent.intent.replace("_", " ")
+            prompt = f"Are you sure you want to {action_name}?"
+            self.session.set_confirmation(intent, prompt)
+            result = ActionResult(False, f"Pending confirmation to {action_name}.", prompt)
         elif intent.intent == "weather":
             self.set_runtime_state(RuntimeState.EXECUTING, reason="fetching weather")
             summary = self.weather.get_summary(intent.slots.get("location") or None)
