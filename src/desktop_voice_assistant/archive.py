@@ -4,8 +4,9 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from math import sqrt
+from pathlib import Path
+from typing import Any
 
 from .config import APP_DIR
 from .models import ResearchSource

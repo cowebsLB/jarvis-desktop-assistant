@@ -47,4 +47,4 @@ def test_resolve_microphone_device(monkeypatch) -> None:
     
     assert resolve_microphone_device("Ambiguous Mic") == 1
     assert resolve_microphone_device("Default Device") == 0
-    assert resolve_microphone_device("Unknown Device") == "Unknown Device"
+    assert resolve_microphone_device("Unknown Device") is None

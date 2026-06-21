@@ -23,9 +23,10 @@ def resolve_microphone_device(device_setting: str | int | None) -> int | str | N
         for idx, d in enumerate(devices):
             if d.get("max_input_channels", 0) > 0 and d.get("name") == device_setting:
                 return idx
+        LOGGER.warning("Configured microphone '%s' was not found. Falling back to system default input.", device_setting)
     except Exception:
         pass
-    return device_setting
+    return None
 
 SUPPORTED_WAKE_WORDS = {
     "alexa": "alexa",

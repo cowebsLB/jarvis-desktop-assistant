@@ -242,7 +242,7 @@ class ProductivityManager:
                 try:
                     trig = datetime.fromisoformat(alm["trigger_time"])
                     if now >= trig:
-                        triggered_msgs.append(f"Alarm trigger alert!")
+                        triggered_msgs.append("Alarm trigger alert!")
                     else:
                         active_alarms.append(alm)
                 except Exception:

@@ -46,7 +46,7 @@ def test_settings_ui_instantiation() -> None:
     assert panel.assistant_name_var.get() == "Jarvis"
     assert panel.assistant_style_var.get() == "stark-butler"
     assert panel.default_location_var.get() == "Beirut, Lebanon"
-    assert panel.mic_device_var.get() == "Default"
+    assert panel.mic_device_var.get() == SettingsPanel.AUTO_DETECT_MIC
     assert panel.gemini_enabled_var.get() is False
     root.destroy()
 
@@ -76,3 +76,16 @@ def test_settings_ui_saves_mic_device(monkeypatch) -> None:
     assert settings.archive_recall_limit == 4
     assert settings.gemini_enabled is True
     assert settings.gemini_model == "gemini-3.5-flash"
+
+
+def test_settings_ui_falls_back_to_auto_detect_for_missing_saved_microphone() -> None:
+    import tkinter as tk
+    from desktop_voice_assistant.settings_ui import SettingsPanel
+
+    root = tk.Tk()
+    root.withdraw()
+    settings = Settings(microphone_device="Missing Microphone")
+    panel = SettingsPanel(root, settings)
+
+    assert panel.mic_device_var.get() == SettingsPanel.AUTO_DETECT_MIC
+    root.destroy()

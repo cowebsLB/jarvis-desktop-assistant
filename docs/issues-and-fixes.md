@@ -35,6 +35,21 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Fix type:
   - `Partial`
 
+### 44. The settings panel stopped scaling cleanly and stale microphone choices could stick around
+
+- Symptom:
+  - the settings window could run out of visible space as more controls were added
+  - a previously saved microphone name could remain selected even after that input device disappeared
+- Root cause:
+  - the panel used a fixed non-scrollable container
+  - missing microphone devices were not normalized back to system default
+- Resolution:
+  - made the settings panel scrollable
+  - added `Auto-detect (System Default)` microphone selection behavior
+  - changed missing saved microphone devices to fall back to system default input in both UI and runtime resolution
+- Fix type:
+  - `Permanent`
+
 ### 2. Runtime dependencies too heavy for one-shot install
 
 - Symptom:

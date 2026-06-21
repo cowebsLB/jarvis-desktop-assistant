@@ -15,6 +15,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class SettingsPanel:
+    AUTO_DETECT_MIC = "Auto-detect (System Default)"
+
     def __init__(self, window: tk.Tk | tk.Toplevel, settings: Settings, on_save=None) -> None:
         self.window = window
         self.settings = settings
@@ -32,9 +34,32 @@ class SettingsPanel:
         style.configure("TLabel", background="#0F172A", foreground="#F1F5F9", font=("Segoe UI", 9))
         style.configure("TCheckbutton", background="#0F172A", foreground="#F1F5F9", font=("Segoe UI", 9))
 
-        # Main scrollable canvas (if needed, but 450x640 fits everything perfectly with Grid)
-        self.main_container = tk.Frame(self.window, bg="#0F172A", padx=20, pady=15)
-        self.main_container.pack(fill="both", expand=True)
+        outer_container = tk.Frame(self.window, bg="#0F172A")
+        outer_container.pack(fill="both", expand=True)
+
+        self.canvas = tk.Canvas(
+            outer_container,
+            bg="#0F172A",
+            highlightthickness=0,
+            bd=0,
+        )
+        self.scrollbar = tk.Scrollbar(
+            outer_container,
+            orient="vertical",
+            command=self.canvas.yview,
+            bg="#1E293B",
+            activebackground="#334155",
+            troughcolor="#0F172A",
+        )
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.main_container = tk.Frame(self.canvas, bg="#0F172A", padx=20, pady=15)
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.main_container, anchor="nw")
+        self.main_container.bind("<Configure>", self._on_content_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
         # Title
         title_lbl = tk.Label(
@@ -102,16 +127,17 @@ class SettingsPanel:
         try:
             import sounddevice as sd
             devices = sd.query_devices()
-            mic_devices = ["Default"]
+            mic_devices = [self.AUTO_DETECT_MIC]
             for d in devices:
                 if d.get("max_input_channels", 0) > 0:
                     name = d.get("name")
                     if name and name not in mic_devices:
                         mic_devices.append(name)
         except Exception:
-            mic_devices = ["Default"]
-            
-        initial_mic = self.settings.microphone_device or "Default"
+            mic_devices = [self.AUTO_DETECT_MIC]
+
+        self.mic_devices = mic_devices
+        initial_mic = self._resolve_initial_microphone_choice(self.settings.microphone_device, mic_devices)
         self.mic_device_var = tk.StringVar(value=initial_mic)
         self.mic_menu = ttk.Combobox(
             speech_frame,
@@ -278,6 +304,25 @@ class SettingsPanel:
         )
         cancel_btn.pack(side="right", padx=5)
 
+    def _on_content_configure(self, _event=None) -> None:
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event) -> None:
+        self.canvas.itemconfigure(self.canvas_window, width=event.width)
+
+    def _on_mousewheel(self, event) -> None:
+        if not self.window.winfo_exists():
+            return
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    @classmethod
+    def _resolve_initial_microphone_choice(cls, configured_device: str | None, available_devices: list[str]) -> str:
+        if not configured_device:
+            return cls.AUTO_DETECT_MIC
+        if configured_device in available_devices:
+            return configured_device
+        return cls.AUTO_DETECT_MIC
+
     def _create_section_header(self, title: str) -> None:
         header_frame = tk.Frame(self.main_container, bg="#0F172A")
         header_frame.pack(fill="x", pady=(10, 2))
@@ -353,7 +398,7 @@ class SettingsPanel:
         self.settings.wake_word_phrase = self.wake_phrase_var.get()
         self.settings.speech_rate = self.speech_rate_var.get()
         mic_val = self.mic_device_var.get()
-        self.settings.microphone_device = None if mic_val == "Default" else mic_val
+        self.settings.microphone_device = None if mic_val == self.AUTO_DETECT_MIC else mic_val
         self.settings.semantic_retrieval_enabled = self.semantic_retrieval_var.get()
         self.settings.web_archive_enabled = self.archive_enabled_var.get()
         self.settings.web_open_after_answer = self.open_after_answer_var.get()

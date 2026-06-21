@@ -228,6 +228,9 @@ Current normalization handles:
 
 - assistant name and assistant style
 - wake-word enablement, wake phrase, microphone device, and audible listen cue
+- scrollable panel layout for smaller screens or future settings growth
+- microphone selection now includes `Auto-detect (System Default)`
+- saved microphone choices fall back to auto-detect if that device is no longer available
 - speech rate
 - semantic retrieval toggle, Ollama model, Gemini fallback toggle, Gemini model, embedding model, search fetch limit, and archive recall limit
 - archive enablement and auto-open-top-source behavior for web research
@@ -322,7 +325,7 @@ Current normalization handles:
 ### Verification Baseline
 
 - automated test suite currently passes:
-  - `120/120`
+  - `121/121`
 
 ## Implemented But Limited
 

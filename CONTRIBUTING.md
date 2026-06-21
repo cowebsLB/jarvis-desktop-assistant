@@ -38,6 +38,12 @@ ollama pull qwen2.5-coder:1.5B
 python -m pytest
 ```
 
+5. Run the full verification pass before shipping:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\check.ps1
+```
+
 ## What Good Changes Look Like
 
 - New behavior is routed intentionally, not by accidental regex overlap.
@@ -60,6 +66,7 @@ If you change behavior, usually update at least one of:
 Before opening a PR:
 
 - run `python -m pytest`
+- run `powershell -ExecutionPolicy Bypass -File .\scripts\check.ps1` for the full local verification pass
 - keep commits focused
 - describe user-facing behavior changes clearly
 - call out any safety tradeoffs

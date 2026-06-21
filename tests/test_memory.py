@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from desktop_voice_assistant.app_memory import AppMemoryStore
-from desktop_voice_assistant.config import Settings
 
 
 class MockLLMAssistant:

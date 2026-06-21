@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import html
 import logging
 import math
 import queue
-import re
 import threading
 import webbrowser
 import tkinter as tk
-from pathlib import Path
 from typing import Any
 
 from .config import Settings

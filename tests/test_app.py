@@ -1,4 +1,3 @@
-import socket
 import pytest
 import sys
 from desktop_voice_assistant.app import acquire_lock, main

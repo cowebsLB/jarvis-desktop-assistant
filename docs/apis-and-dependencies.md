@@ -79,6 +79,20 @@
 
 - built-in local database engine for long-lived research archive, tasks list, task embeddings, conversation turns, and conversation embeddings
 
+## Developer Verification Tools
+
+### ruff
+
+- correctness-focused linting for the repository
+- current repo configuration checks:
+  - `F` class issues such as undefined names and unused imports
+
+### build
+
+- package build verification for source distribution and wheel generation
+- current repo command path:
+  - `pyproject-build`
+
 ## External APIs
 
 ### Gemini API

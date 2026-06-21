@@ -45,6 +45,7 @@ This project is building toward a practical desktop assistant that feels convers
 - Ask for clarification or confirmation when the target is ambiguous
 - Set timers, reminders, alarms, tasks, and quick notes
 - Adjust assistant style, confirmation policy, archive behavior, and wake cue from the settings panel
+- Use a scrollable settings panel with microphone auto-detect fallback to the system default input
 
 ## Example Commands
 
@@ -185,7 +186,19 @@ Run the test suite with:
 python -m pytest
 ```
 
-Current baseline: `120/120` passing tests.
+Run the full repo verification pass with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\check.ps1
+```
+
+That check currently runs:
+
+- `pytest`
+- `ruff check src tests`
+- `pyproject-build`
+
+Current baseline: `121/121` passing tests.
 
 ## Local Data
 
