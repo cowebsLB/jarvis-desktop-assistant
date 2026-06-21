@@ -10,6 +10,7 @@ SETTINGS_PATH = APP_DIR / "settings.json"
 SUPPORTED_WAKE_WORDS = {"alexa", "hey jarvis", "hey mycroft", "hey rhasspy", "timer", "weather"}
 SUPPORTED_ASSISTANT_STYLES = {"stark-butler", "concise", "neutral"}
 SUPPORTED_CONFIRMATION_POLICIES = {"smart", "always"}
+SUPPORTED_TTS_ENGINES = {"pyttsx3", "none"}
 
 
 @dataclass
@@ -17,6 +18,8 @@ class Settings:
     microphone_device: str | None = None
     wake_word_enabled: bool = True
     wake_word_phrase: str = "hey jarvis"
+    push_to_talk_enabled: bool = False
+    proactive_features_enabled: bool = False
     stt_model_name: str = "base.en"
     stt_device: str = "cpu"
     stt_compute_type: str = "int8"
@@ -24,6 +27,7 @@ class Settings:
     gemini_enabled: bool = False
     gemini_model: str = "gemini-3.5-flash"
     embedding_model: str = "nomic-embed-text"
+    tts_engine: str = "pyttsx3"
     tts_voice_id: str | None = None
     assistant_name: str = "Jarvis"
     assistant_style: str = "stark-butler"
@@ -82,6 +86,8 @@ class Settings:
             settings.assistant_style = defaults.assistant_style
         if settings.confirmation_policy not in SUPPORTED_CONFIRMATION_POLICIES:
             settings.confirmation_policy = defaults.confirmation_policy
+        if settings.tts_engine not in SUPPORTED_TTS_ENGINES:
+            settings.tts_engine = defaults.tts_engine
         if settings.ollama_model == "qwen2.5:1.5b-instruct":
             settings.ollama_model = defaults.ollama_model
         if data.get("stt_model_path") and "stt_model_name" not in data:

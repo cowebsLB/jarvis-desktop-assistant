@@ -66,11 +66,14 @@ def main() -> None:
             summary="Desktop voice assistant process started.",
         )
     )
-    try:
-        tts = TextToSpeech(settings)
-    except Exception as exc:
-        logging.getLogger(__name__).warning("Text-to-speech unavailable: %s", exc)
-        tts = MissingTextToSpeech(str(exc))
+    if settings.tts_engine == "none":
+        tts = MissingTextToSpeech("Disabled in settings")
+    else:
+        try:
+            tts = TextToSpeech(settings)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Text-to-speech unavailable: %s", exc)
+            tts = MissingTextToSpeech(str(exc))
     local_llm = OllamaAssistant(
         settings.ollama_model,
         assistant_name=settings.assistant_name,

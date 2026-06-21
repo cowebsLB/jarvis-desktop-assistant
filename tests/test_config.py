@@ -18,6 +18,9 @@ def test_settings_round_trip(tmp_path: Path) -> None:
         archive_recall_limit=5,
         gemini_enabled=True,
         gemini_model="gemini-3.5-flash",
+        tts_engine="none",
+        push_to_talk_enabled=True,
+        proactive_features_enabled=True,
     )
     settings.save(path)
     loaded = Settings.load(path)
@@ -34,6 +37,9 @@ def test_settings_round_trip(tmp_path: Path) -> None:
     assert loaded.gemini_enabled is True
     assert loaded.gemini_model == "gemini-3.5-flash"
     assert loaded.assistant_name == "Jarvis"
+    assert loaded.tts_engine == "none"
+    assert loaded.push_to_talk_enabled is True
+    assert loaded.proactive_features_enabled is True
 
 
 def test_settings_ui_instantiation() -> None:
@@ -48,6 +54,9 @@ def test_settings_ui_instantiation() -> None:
     assert panel.default_location_var.get() == "Beirut, Lebanon"
     assert panel.mic_device_var.get() == SettingsPanel.AUTO_DETECT_MIC
     assert panel.gemini_enabled_var.get() is False
+    assert panel.tts_engine_var.get() == "pyttsx3"
+    assert panel.push_to_talk_enabled_var.get() is False
+    assert panel.proactive_features_enabled_var.get() is False
     root.destroy()
 
 
@@ -67,6 +76,9 @@ def test_settings_ui_saves_mic_device(monkeypatch) -> None:
     panel.archive_recall_var.set(4)
     panel.gemini_enabled_var.set(True)
     panel.gemini_model_var.set("gemini-3.5-flash")
+    panel.tts_engine_var.set("none")
+    panel.push_to_talk_enabled_var.set(True)
+    panel.proactive_features_enabled_var.set(True)
     panel._save_settings()
     assert settings.microphone_device == "Test Microphone"
     assert settings.assistant_style == "neutral"
@@ -76,6 +88,9 @@ def test_settings_ui_saves_mic_device(monkeypatch) -> None:
     assert settings.archive_recall_limit == 4
     assert settings.gemini_enabled is True
     assert settings.gemini_model == "gemini-3.5-flash"
+    assert settings.tts_engine == "none"
+    assert settings.push_to_talk_enabled is True
+    assert settings.proactive_features_enabled is True
 
 
 def test_settings_ui_falls_back_to_auto_detect_for_missing_saved_microphone() -> None:

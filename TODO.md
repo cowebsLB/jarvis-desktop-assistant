@@ -55,10 +55,10 @@ All tasks in the "Now" cycle have been completed successfully:
 
 ### UI And Settings
 
-- Add settings for:
-  - TTS engine
-  - push-to-talk
-  - proactive features
+- [x] Add settings for:
+  - [x] TTS engine
+  - [x] push-to-talk
+  - [x] proactive features
 
 
 ### Conversation, Memory, And Autonomy

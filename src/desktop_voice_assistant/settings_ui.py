@@ -127,10 +127,14 @@ class SettingsPanel:
         card_voice = self._create_section_card("Voice & Wake Word")
         self.wake_enabled_var = tk.BooleanVar(value=self.settings.wake_word_enabled)
         self._create_field_check(card_voice, "Enable Wake Word Detection", self.wake_enabled_var)
+        self.push_to_talk_enabled_var = tk.BooleanVar(value=self.settings.push_to_talk_enabled)
+        self._create_field_check(card_voice, "Enable Push-to-Talk (Ctrl+Alt+J)", self.push_to_talk_enabled_var)
         self.wake_cue_var = tk.BooleanVar(value=self.settings.wake_cue_enabled)
         self._create_field_check(card_voice, "Play Audible Listening Cue", self.wake_cue_var)
         self.wake_phrase_var = tk.StringVar(value=self.settings.wake_word_phrase)
         self._create_field_combo(card_voice, "Wake Phrase", self.wake_phrase_var, sorted(list(SUPPORTED_WAKE_WORDS)))
+        self.tts_engine_var = tk.StringVar(value=self.settings.tts_engine)
+        self._create_field_combo(card_voice, "TTS Engine", self.tts_engine_var, ["pyttsx3", "none"])
         
         # Microphones
         try:
@@ -180,6 +184,8 @@ class SettingsPanel:
         card_hud = self._create_section_card("HUD & System Policies")
         self.hud_enabled_var = tk.BooleanVar(value=self.settings.hud_enabled)
         self._create_field_check(card_hud, "Enable Floating HUD Overlay", self.hud_enabled_var)
+        self.proactive_features_enabled_var = tk.BooleanVar(value=self.settings.proactive_features_enabled)
+        self._create_field_check(card_hud, "Enable Proactive Briefings & Summaries", self.proactive_features_enabled_var)
         self.confirmation_policy_var = tk.StringVar(value=self.settings.confirmation_policy)
         self._create_field_combo(card_hud, "Confirmation Policy", self.confirmation_policy_var, sorted(SUPPORTED_CONFIRMATION_POLICIES))
         self.followup_var = tk.IntVar(value=self.settings.conversation_followup_seconds)
@@ -395,6 +401,9 @@ class SettingsPanel:
         self.settings.archive_recall_limit = self.archive_recall_var.get()
         self.settings.hud_enabled = self.hud_enabled_var.get()
         self.settings.conversation_followup_seconds = self.followup_var.get()
+        self.settings.push_to_talk_enabled = self.push_to_talk_enabled_var.get()
+        self.settings.tts_engine = self.tts_engine_var.get()
+        self.settings.proactive_features_enabled = self.proactive_features_enabled_var.get()
 
         # Save to disk
         try:

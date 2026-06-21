@@ -236,6 +236,9 @@ Current normalization handles:
 
 - assistant name and assistant style
 - wake-word enablement, wake phrase, microphone device, and audible listen cue
+- TTS engine selection (options: `pyttsx3`, `none`)
+- push-to-talk global hotkey enablement (Ctrl+Alt+J triggers listening without active microphone wake-listening)
+- proactive briefings and summaries enablement
 - scrollable panel layout for smaller screens or future settings growth
 - microphone selection now includes `Auto-detect (System Default)`
 - saved microphone choices fall back to auto-detect if that device is no longer available

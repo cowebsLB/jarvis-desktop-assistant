@@ -11,10 +11,45 @@ from .assistant import DesktopAssistant
 from .config import SETTINGS_PATH, Settings
 from .model_manager import ModelManager
 from .models import RuntimeState
-from .speech import WakeWordListener
+from .speech import WakeWordListener, TextToSpeech, MissingTextToSpeech
 
+
+import ctypes
+import time
+try:
+    from ctypes import wintypes
+except ImportError:
+    wintypes = None  # type: ignore
 
 LOGGER = logging.getLogger(__name__)
+
+MOD_ALT = 0x0001
+MOD_CONTROL = 0x0002
+VK_J = 0x4A
+WM_HOTKEY = 0x0312
+WM_QUIT = 0x0012
+
+user32 = None
+kernel32 = None
+if wintypes is not None:
+    try:
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        
+        # Set up prototypes
+        user32.RegisterHotKey.argtypes = (wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT)
+        user32.RegisterHotKey.restype = wintypes.BOOL
+        
+        user32.UnregisterHotKey.argtypes = (wintypes.HWND, ctypes.c_int)
+        user32.UnregisterHotKey.restype = wintypes.BOOL
+        
+        user32.GetMessageW.argtypes = (ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT)
+        user32.GetMessageW.restype = wintypes.BOOL
+        
+        user32.PostThreadMessageW.argtypes = (wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+        user32.PostThreadMessageW.restype = wintypes.BOOL
+    except Exception:
+        pass
 
 
 class TrayApplication:
@@ -42,16 +77,68 @@ class TrayApplication:
             pystray.MenuItem("Quit", self._quit),
         )
         self.wake_word_listener = WakeWordListener(settings, self.trigger_listen)
+        self._ptt_thread_id = None
 
     def run(self) -> None:
         if self.hud:
             self.hud.start()
-        if self.settings.wake_word_enabled:
-            self.wake_word_listener.start()
-            if self.wake_word_listener.ready:
-                self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="wake word listener ready")
-                self._refresh_title()
+        self._sync_listeners(reason="app run")
         self.icon.run()
+
+    def _sync_listeners(self, reason: str = "sync") -> None:
+        if self.settings.push_to_talk_enabled:
+            self.wake_word_listener.stop()
+            self._start_ptt_listener()
+            if self.assistant.runtime_state == RuntimeState.WAKE_LISTENING:
+                self.assistant.set_runtime_state(RuntimeState.IDLE, reason=f"{reason}: PTT active")
+        else:
+            self._stop_ptt_listener()
+            if self.settings.wake_word_enabled:
+                self.wake_word_listener.start()
+                if self.wake_word_listener.ready and self.assistant.runtime_state == RuntimeState.IDLE:
+                    self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason=f"{reason}: wake word active")
+            else:
+                self.wake_word_listener.stop()
+                if self.assistant.runtime_state == RuntimeState.WAKE_LISTENING:
+                    self.assistant.set_runtime_state(RuntimeState.IDLE, reason=f"{reason}: wake word disabled")
+
+    def _run_ptt_hotkey(self) -> None:
+        if user32 is None or kernel32 is None or wintypes is None:
+            LOGGER.warning("PTT global hotkey is not supported on this platform/configuration")
+            return
+
+        self._ptt_thread_id = kernel32.GetCurrentThreadId()
+        hotkey_id = 99  # A unique ID for this hotkey
+        
+        # Register Ctrl+Alt+J
+        success = user32.RegisterHotKey(None, hotkey_id, MOD_CONTROL | MOD_ALT, VK_J)
+        if not success:
+            LOGGER.error("Failed to register PTT global hotkey Ctrl+Alt+J. Error code: %s", ctypes.GetLastError())
+            self._ptt_thread_id = None
+            return
+
+        LOGGER.info("PTT global hotkey Ctrl+Alt+J registered successfully")
+        
+        msg = wintypes.MSG()
+        try:
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+                if msg.message == WM_HOTKEY:
+                    if msg.wParam == hotkey_id:
+                        LOGGER.info("PTT hotkey Ctrl+Alt+J pressed, triggering listen")
+                        self.trigger_listen()
+        finally:
+            user32.UnregisterHotKey(None, hotkey_id)
+            LOGGER.info("PTT global hotkey unregistered")
+            self._ptt_thread_id = None
+
+    def _start_ptt_listener(self) -> None:
+        if self._ptt_thread_id is not None:
+            return  # Already running
+        threading.Thread(target=self._run_ptt_hotkey, daemon=True, name="ptt-hotkey").start()
+
+    def _stop_ptt_listener(self) -> None:
+        if self._ptt_thread_id is not None and user32 is not None:
+            user32.PostThreadMessageW(self._ptt_thread_id, WM_QUIT, 0, 0)
 
     def trigger_listen(self) -> None:
         with self._request_lock:
@@ -120,7 +207,7 @@ class TrayApplication:
                 if result is None or not result.success:
                     current_state = self.assistant.runtime_state
                     if current_state in {RuntimeState.AWAITING_CONFIRMATION, RuntimeState.CLARIFYING, RuntimeState.AWAITING_FOLLOWUP}:
-                        if self.settings.wake_word_enabled:
+                        if self.settings.wake_word_enabled and not self.settings.push_to_talk_enabled:
                             self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="follow-up cycle reset")
                         else:
                             self.assistant.set_runtime_state(RuntimeState.IDLE, reason="follow-up cycle reset")
@@ -132,7 +219,7 @@ class TrayApplication:
                     RuntimeState.AWAITING_FOLLOWUP
                 }
                 
-                if self.settings.wake_word_enabled:
+                if self.settings.wake_word_enabled and not self.settings.push_to_talk_enabled:
                     self.wake_word_listener.start()
                     if should_transition:
                         self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="wake word listener resumed")
@@ -150,12 +237,7 @@ class TrayApplication:
     def _toggle_wake_word(self, icon, item) -> None:
         self.settings.wake_word_enabled = not self.settings.wake_word_enabled
         self.settings.save()
-        if self.settings.wake_word_enabled:
-            self.wake_word_listener.start()
-            self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="wake word enabled")
-        else:
-            self.wake_word_listener.stop()
-            self.assistant.set_runtime_state(RuntimeState.IDLE, reason="wake word disabled")
+        self._sync_listeners(reason="toggle wake word")
         self._refresh_title()
 
     def _toggle_hud(self, icon, item) -> None:
@@ -186,13 +268,7 @@ class TrayApplication:
 
     def _on_settings_saved(self) -> None:
         LOGGER.info("Settings saved via GUI panel, synchronizing runtime state...")
-        # Sync wake word
-        if self.settings.wake_word_enabled:
-            self.wake_word_listener.start()
-            self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="settings sync: wake word active")
-        else:
-            self.wake_word_listener.stop()
-            self.assistant.set_runtime_state(RuntimeState.IDLE, reason="settings sync: wake word disabled")
+        self._sync_listeners(reason="settings sync")
 
         # Sync HUD
         if self.hud:
@@ -211,11 +287,16 @@ class TrayApplication:
         if self.assistant.researcher:
             self.assistant.researcher.fetch_limit = self.settings.web_fetch_limit
             self.assistant.researcher.archive_enabled = self.settings.web_archive_enabled
-        if hasattr(self.assistant.tts, "engine") and self.assistant.tts.engine:
+        
+        # Sync TTS engine
+        if self.settings.tts_engine == "none":
+            self.assistant.tts = MissingTextToSpeech("Disabled in settings")
+        else:
             try:
-                self.assistant.tts.engine.setProperty("rate", self.settings.speech_rate)
-            except Exception:
-                pass
+                self.assistant.tts = TextToSpeech(self.settings)
+            except Exception as exc:
+                LOGGER.warning("Failed to recreate Text-to-Speech: %s", exc)
+                self.assistant.tts = MissingTextToSpeech(str(exc))
         self._refresh_title()
 
     def _open_settings(self, icon, item) -> None:
@@ -226,6 +307,7 @@ class TrayApplication:
 
     def _quit(self, icon, item) -> None:
         self.wake_word_listener.stop()
+        self._stop_ptt_listener()
         if self.hud:
             self.hud.stop()
         self.assistant.set_runtime_state(RuntimeState.SHUTTING_DOWN, reason="tray quit requested")
@@ -246,8 +328,9 @@ class TrayApplication:
             self.assistant.set_runtime_state(RuntimeState.ERROR, reason="speech model warmup failed")
             self.assistant.tts.speak("Speech model warmup failed.")
         finally:
-            if self.settings.wake_word_enabled:
+            if self.settings.wake_word_enabled and not self.settings.push_to_talk_enabled:
                 self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="speech model warmup complete")
+                self.wake_word_listener.start()
             else:
                 self.assistant.set_runtime_state(RuntimeState.IDLE, reason="speech model warmup complete")
             self._refresh_title()
