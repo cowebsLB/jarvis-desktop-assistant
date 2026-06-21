@@ -25,5 +25,18 @@ def test_settings_ui_instantiation() -> None:
     panel = SettingsPanel(root, settings)
     assert panel.assistant_name_var.get() == "Jarvis"
     assert panel.default_location_var.get() == "Beirut, Lebanon"
+    assert panel.mic_device_var.get() == "Default"
     root.destroy()
+
+
+def test_settings_ui_saves_mic_device() -> None:
+    import tkinter as tk
+    from desktop_voice_assistant.settings_ui import SettingsPanel
+    root = tk.Tk()
+    root.withdraw()
+    settings = Settings(microphone_device=None)
+    panel = SettingsPanel(root, settings)
+    panel.mic_device_var.set("Test Microphone")
+    panel._save_settings()
+    assert settings.microphone_device == "Test Microphone"
 

@@ -17,7 +17,7 @@ class SettingsPanel:
 
         self.window.title("Jarvis Settings")
         self.window.configure(bg="#0F172A")
-        self.window.geometry("450x640")
+        self.window.geometry("450x670")
         self.window.resizable(False, False)
 
         # Apply basic styling to ttk elements
@@ -75,9 +75,36 @@ class SettingsPanel:
         )
         self.wake_phrase_menu.grid(row=1, column=1, sticky="w", pady=4, padx=5)
 
+        # Microphone input device dropdown
+        lbl_mic = tk.Label(speech_frame, text="Microphone:", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
+        lbl_mic.grid(row=2, column=0, sticky="w", pady=4)
+        
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            mic_devices = ["Default"]
+            for d in devices:
+                if d.get("max_input_channels", 0) > 0:
+                    name = d.get("name")
+                    if name and name not in mic_devices:
+                        mic_devices.append(name)
+        except Exception:
+            mic_devices = ["Default"]
+            
+        initial_mic = self.settings.microphone_device or "Default"
+        self.mic_device_var = tk.StringVar(value=initial_mic)
+        self.mic_menu = ttk.Combobox(
+            speech_frame,
+            textvariable=self.mic_device_var,
+            values=mic_devices,
+            state="readonly",
+            width=22
+        )
+        self.mic_menu.grid(row=2, column=1, sticky="w", pady=4, padx=5)
+
         # Speech rate slider
         lbl_rate = tk.Label(speech_frame, text="Speech Rate (WPM):", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
-        lbl_rate.grid(row=2, column=0, sticky="w", pady=4)
+        lbl_rate.grid(row=3, column=0, sticky="w", pady=4)
         
         self.speech_rate_var = tk.IntVar(value=self.settings.speech_rate)
         self.rate_scale = tk.Scale(
@@ -92,7 +119,7 @@ class SettingsPanel:
             troughcolor="#1E293B",
             activebackground="#38BDF8"
         )
-        self.rate_scale.grid(row=2, column=1, sticky="we", pady=4, padx=5)
+        self.rate_scale.grid(row=3, column=1, sticky="we", pady=4, padx=5)
 
         # 3. Section: Local AI & Web Search
         self._create_section_header("Intelligence & Search")
@@ -261,6 +288,8 @@ class SettingsPanel:
         self.settings.wake_word_enabled = self.wake_enabled_var.get()
         self.settings.wake_word_phrase = self.wake_phrase_var.get()
         self.settings.speech_rate = self.speech_rate_var.get()
+        mic_val = self.mic_device_var.get()
+        self.settings.microphone_device = None if mic_val == "Default" else mic_val
         self.settings.semantic_retrieval_enabled = self.semantic_retrieval_var.get()
         self.settings.ollama_model = ollama_model
         self.settings.embedding_model = embedding_model
