@@ -29,12 +29,13 @@ def test_settings_ui_instantiation() -> None:
     root.destroy()
 
 
-def test_settings_ui_saves_mic_device() -> None:
+def test_settings_ui_saves_mic_device(monkeypatch) -> None:
     import tkinter as tk
     from desktop_voice_assistant.settings_ui import SettingsPanel
     root = tk.Tk()
     root.withdraw()
     settings = Settings(microphone_device=None)
+    monkeypatch.setattr(settings, "save", lambda path=None: None)
     panel = SettingsPanel(root, settings)
     panel.mic_device_var.set("Test Microphone")
     panel._save_settings()
