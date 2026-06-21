@@ -198,7 +198,7 @@ class FloatingHud:
         self.top_frame.bind("<ButtonRelease-1>", self._on_drag_release)
 
         # Glowing Orb Canvas
-        self.canvas = tk.Canvas(self.top_frame, width=50, height=50, bg="#1E293B", highlightthickness=0)
+        self.canvas = tk.Canvas(self.top_frame, width=60, height=60, bg="#1E293B", highlightthickness=0)
         self.canvas.pack(side="left", padx=5, pady=5)
         self.canvas.bind("<Button-1>", self._on_drag_start)
         self.canvas.bind("<B1-Motion>", self._on_drag_motion)
@@ -638,23 +638,56 @@ class FloatingHud:
         state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
         primary_hex, glow_hex = STATE_COLORS.get(state_val, ("#38BDF8", "#0284C7"))
 
-        # Listening / processing / speaking states pulse faster
+        # Listening / processing / speaking states pulse and spin faster
         if state_val in ["capturing_command", "transcribing", "understanding", "planning", "researching", "fetching_sources", "ranking_sources", "summarizing_sources", "archiving_sources", "executing", "speaking"]:
             scale = 1.0 + 0.18 * math.sin(self.pulse_phase * 2.0)
+            spin_multiplier = 2.0
         else:
-            # Idle slowly breaths
+            # Idle slowly breaths and spins
             scale = 1.0 + 0.08 * math.sin(self.pulse_phase)
+            spin_multiplier = 1.0
 
         self.canvas.delete("orb")
-        cx, cy = 25, 25
+        cx, cy = 30, 30
         r_base = 10
 
         # Draw blended gradient outer rings
         for i in range(4, 0, -1):
-            r = (r_base + i * 3.5) * scale
+            r = (r_base + i * 3.0) * scale
             # Blend color into the top frame background (#1E293B)
             alpha_color = self._blend_colors(glow_hex, "#1E293B", i / 5.0)
             self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill=alpha_color, outline="", tags="orb")
+
+        # Draw spinning Sci-Fi outer scanning arcs (rotating clockwise)
+        r_ring1 = 23 * scale
+        angle_offset1 = (self.pulse_phase * 15.0 * spin_multiplier) % 360
+        self.canvas.create_arc(
+            cx - r_ring1, cy - r_ring1, cx + r_ring1, cy + r_ring1,
+            start=angle_offset1, extent=80, style="arc", outline=primary_hex, width=1.5, tags="orb"
+        )
+        self.canvas.create_arc(
+            cx - r_ring1, cy - r_ring1, cx + r_ring1, cy + r_ring1,
+            start=angle_offset1 + 180, extent=80, style="arc", outline=primary_hex, width=1.5, tags="orb"
+        )
+
+        # Draw spinning Sci-Fi inner scanning arcs (rotating counter-clockwise)
+        r_ring2 = 18 * scale
+        angle_offset2 = (360 - (self.pulse_phase * 25.0 * spin_multiplier)) % 360
+        self.canvas.create_arc(
+            cx - r_ring2, cy - r_ring2, cx + r_ring2, cy + r_ring2,
+            start=angle_offset2, extent=110, style="arc", outline=glow_hex, width=1, tags="orb"
+        )
+        self.canvas.create_arc(
+            cx - r_ring2, cy - r_ring2, cx + r_ring2, cy + r_ring2,
+            start=angle_offset2 + 180, extent=110, style="arc", outline=glow_hex, width=1, tags="orb"
+        )
+
+        # Draw thin dotted crosshair boundary
+        r_cross = 25 * scale
+        self.canvas.create_oval(
+            cx - r_cross, cy - r_cross, cx + r_cross, cy + r_cross,
+            outline=glow_hex, width=1, dash=(2, 4), tags="orb"
+        )
 
         # Draw solid inner core
         self.canvas.create_oval(cx - r_base, cy - r_base, cx + r_base, cy + r_base, fill=primary_hex, outline="", tags="orb")
@@ -662,10 +695,10 @@ class FloatingHud:
         # Render wake pulse animation if triggered
         if self.wake_pulse_active:
             self.wake_pulse_radius += 3.5
-            if self.wake_pulse_radius > 50:
+            if self.wake_pulse_radius > 60:
                 self.wake_pulse_active = False
             else:
-                fade = (50.0 - self.wake_pulse_radius) / 35.0
+                fade = (60.0 - self.wake_pulse_radius) / 45.0
                 fade = max(0.0, min(1.0, fade))
                 pulse_color = self._blend_colors("#38BDF8", "#1E293B", 1.0 - fade)
                 self.canvas.create_oval(
