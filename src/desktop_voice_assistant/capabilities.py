@@ -72,6 +72,18 @@ class CapabilityRegistry:
             ("power_action", "Execute a system power command.", [("action", "shutdown, restart, or sleep.")], ["shutdown the system"]),
             ("delete_file", "Delete a local file.", [("target", "Filename to delete.")], ["delete notes.txt"]),
             ("send_email", "Draft and send an email message.", [("to", "Recipient email."), ("subject", "Email subject.", False), ("body", "Email body text.", False)], ["send email to john@example.com"]),
+            ("browser_click_control", "Click a named link, button, or control on the active browser page.", [("control_name", "Name of the control, link, or button to click.")], ["click the Sign In button on the browser"]),
+            ("browser_fill_form", "Fill one or more form fields on the active browser page.", [("data", "Form field data as JSON or comma-separated Label: value pairs.")], ["fill the form username: myuser in the browser"]),
+            ("spotify_play_pause", "Toggle Spotify play/pause.", [], ["pause spotify", "resume music"]),
+            ("spotify_next_track", "Skip to the next Spotify track.", [], ["next song", "skip track"]),
+            ("spotify_prev_track", "Go back to the previous Spotify track.", [], ["previous song", "last track"]),
+            ("spotify_volume_up", "Increase Spotify volume.", [], ["volume up", "louder"]),
+            ("spotify_volume_down", "Decrease Spotify volume.", [], ["volume down", "quieter"]),
+            ("discord_mute", "Toggle mute/unmute on Discord.", [], ["mute discord", "unmute discord"]),
+            ("discord_deafen", "Toggle deafen/undeafen on Discord.", [], ["deafen discord", "undeafen discord"]),
+            ("discord_navigate", "Navigate to a channel, server, or user in Discord.", [("target", "Channel or user name to navigate to.")], ["go to discord channel general"]),
+            ("slack_mute", "Toggle mute/unmute on Slack.", [], ["mute slack", "unmute slack"]),
+            ("slack_navigate", "Navigate to a channel or user in Slack.", [("target", "Channel or user name to navigate to.")], ["go to slack channel engineering"]),
         ]
 
         for intent, description, slot_definitions, examples in definitions:

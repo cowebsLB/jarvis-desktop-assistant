@@ -374,6 +374,8 @@ class DesktopAssistant:
 
     def _answer_question(self, query: str) -> str:
         # Check local database knowledge first (unifies research, tasks, and conversation history)
+        context_blocks = []
+        
         archive = getattr(self.researcher, "archive", None)
         if archive:
             local_hits = archive.search_local(
@@ -382,7 +384,6 @@ class DesktopAssistant:
                 embedder=getattr(self.researcher, "embedder", None)
             )
             if local_hits:
-                context_blocks = []
                 for hit in local_hits:
                     if hit["type"] == "research":
                         context_blocks.append(f"[Stored Research] Title: {hit['title']}\nContent: {hit['content'][:1500]}")
@@ -390,18 +391,57 @@ class DesktopAssistant:
                         context_blocks.append(f"[Active Task] Task Description: {hit['content']}")
                     elif hit["type"] == "conversation":
                         context_blocks.append(f"[Past Conversation Turn]\n{hit['content']}")
-                
-                context = "\n\n---\n\n".join(context_blocks)
-                prompt = (
-                    f"Question: {query}\n\n"
-                    "Answer the question concisely based only on the provided local records context. "
-                    "If the records show a task or past conversation, summarize or respond directly referencing that local context.\n\n"
-                    f"Local Records Context:\n{context}"
-                )
-                return self.llm.answer_with_context(query, prompt)
+        
+        # Check active reminders
+        if self.productivity and self.productivity.reminders:
+            reminder_strs = [f"- Remind to: {r.get('content')} at {r.get('trigger_time')}" for r in self.productivity.reminders if r.get("content")]
+            if reminder_strs:
+                context_blocks.append("[Active Reminders]\n" + "\n".join(reminder_strs))
+        
+        # Check active alarms
+        if self.productivity and self.productivity.alarms:
+            alarm_strs = [f"- Alarm set for: {a.get('trigger_time')}" for a in self.productivity.alarms if a.get("trigger_time")]
+            if alarm_strs:
+                context_blocks.append("[Active Alarms]\n" + "\n".join(alarm_strs))
+        
+        # Check active timers
+        if self.productivity and self.productivity.timers:
+            timer_strs = [f"- Timer for {t.get('duration_seconds')}s (started at {t.get('created_at')})" for t in self.productivity.timers if t.get("duration_seconds")]
+            if timer_strs:
+                context_blocks.append("[Active Timers]\n" + "\n".join(timer_strs))
+        
+        # Check learned preferences
+        memory = getattr(self.actions, "memory", None)
+        if memory:
+            pref_strs = []
+            pref_loc = memory.get_preference("preferred_location") or self.settings.default_location
+            if pref_loc:
+                pref_strs.append(f"- Preferred Location: {pref_loc}")
+            fav_sites = memory.get_preference("favorite_sites")
+            if fav_sites:
+                pref_strs.append("- Favorite Sites: " + ", ".join(f"{k} ({v})" for k, v in fav_sites.items()))
+            pref_apps = memory.get_preference("preferred_apps")
+            if pref_apps:
+                pref_strs.append("- Preferred Apps: " + ", ".join(f"{k} ({v})" for k, v in pref_apps.items()))
+            aliases = memory.snapshot()
+            if aliases:
+                pref_strs.append("- Known Aliases: " + ", ".join(f"{k} -> {v.get('canonical')}" for k, v in aliases.items()))
+            if pref_strs:
+                context_blocks.append("[Learned User Preferences]\n" + "\n".join(pref_strs))
+        
+        if context_blocks:
+            context = "\n\n---\n\n".join(context_blocks)
+            prompt = (
+                f"Question: {query}\n\n"
+                "Answer the question concisely based only on the provided local records context. "
+                "If the records show a task, reminder, alarm, timer, preference, or past conversation, "
+                "summarize or respond directly referencing that local context.\n\n"
+                f"Local Records Context:\n{context}"
+            )
+            return self.llm.answer_with_context(query, prompt)
 
         # Fallback to recent conversation turn context
-        history_context = self.actions.memory.get_turns_context()
+        history_context = self.actions.memory.get_turns_context() if self.actions else ""
         if history_context:
             return self.llm.answer_with_context(query, history_context)
 

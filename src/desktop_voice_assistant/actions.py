@@ -19,7 +19,7 @@ from .config import APP_DIR, Settings
 from .filesystem_actions import DesktopControl
 from .models import ActionResult, IntentResult, OpenTargetPreview
 from .response_style import ResponseStyle
-from .app_helpers import NotepadHelper, BrowserHelper, VSCodeHelper
+from .app_helpers import NotepadHelper, BrowserHelper, VSCodeHelper, SpotifyHelper, DiscordHelper, SlackHelper
 from .ui_control import UIController
 
 
@@ -36,6 +36,9 @@ class ActionExecutor:
         self.browser_helper = BrowserHelper(self)
         self.vscode_helper = VSCodeHelper(self)
         self.ui_controller = UIController(self)
+        self.spotify_helper = SpotifyHelper(self)
+        self.discord_helper = DiscordHelper(self)
+        self.slack_helper = SlackHelper(self)
         self._scanned_apps: dict[str, str] = {}
         
         import sys
@@ -88,6 +91,10 @@ class ActionExecutor:
             return self.notepad_helper.write_and_save(intent.slots["text"], intent.slots["filename"])
         if intent.intent == "browser_search_and_bookmark":
             return self.browser_helper.search_and_bookmark(intent.slots["query"])
+        if intent.intent == "browser_click_control":
+            return self.browser_helper.click_control(intent.slots["control_name"])
+        if intent.intent == "browser_fill_form":
+            return self.browser_helper.fill_form(intent.slots.get("data") or {})
         if intent.intent == "vscode_open_terminal":
             return self.vscode_helper.open_terminal()
         if intent.intent == "ui_click_coordinate":
@@ -98,6 +105,26 @@ class ActionExecutor:
             return self.ui_controller.write_to_coordinate(int(intent.slots["x"]), int(intent.slots["y"]), intent.slots["text"])
         if intent.intent == "ui_click_control":
             return self.ui_controller.click_control(intent.slots["window_title"], intent.slots["control_name"])
+        if intent.intent == "spotify_play_pause":
+            return self.spotify_helper.play_pause()
+        if intent.intent == "spotify_next_track":
+            return self.spotify_helper.next_track()
+        if intent.intent == "spotify_prev_track":
+            return self.spotify_helper.previous_track()
+        if intent.intent == "spotify_volume_up":
+            return self.spotify_helper.volume_adjust("up")
+        if intent.intent == "spotify_volume_down":
+            return self.spotify_helper.volume_adjust("down")
+        if intent.intent == "discord_mute":
+            return self.discord_helper.mute_unmute()
+        if intent.intent == "discord_deafen":
+            return self.discord_helper.deafen()
+        if intent.intent == "discord_navigate":
+            return self.discord_helper.navigate_to(intent.slots["target"])
+        if intent.intent == "slack_mute":
+            return self.slack_helper.mute_unmute()
+        if intent.intent == "slack_navigate":
+            return self.slack_helper.navigate_to(intent.slots["target"])
         if intent.intent == "power_action":
             return self._execute_power_action(intent.slots["action"])
         if intent.intent == "delete_file":

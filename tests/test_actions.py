@@ -480,3 +480,164 @@ def test_action_executor_scan_installed_apps(monkeypatch) -> None:
     executor._launch_target("Microsoft.FakeCalculator_8wekyb3d8bbwe!App", "fake calculator")
     assert launched_cmd == [["explorer.exe", "shell:AppsFolder\\Microsoft.FakeCalculator_8wekyb3d8bbwe!App"]]
 
+
+# ── App-Specific Helper Dispatch Tests ──────────────────────────────────────
+
+def test_spotify_play_pause_dispatch(monkeypatch) -> None:
+    """spotify_play_pause intent focuses Spotify and presses space."""
+    focused: list[str] = []
+    pressed: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def press(self, key): pressed.append(key)
+        def hotkey(self, *keys): pressed.append("-".join(keys))
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("spotify_play_pause", 0.95, {}))
+    assert result.success
+    assert "spotify" in focused
+    assert "space" in pressed
+
+
+def test_spotify_next_track_dispatch(monkeypatch) -> None:
+    """spotify_next_track intent presses ctrl-right."""
+    focused: list[str] = []
+    pressed: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def hotkey(self, *keys): pressed.append("-".join(keys))
+        def press(self, key): pressed.append(key)
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("spotify_next_track", 0.95, {}))
+    assert result.success
+    assert any("ctrl" in k and "right" in k for k in pressed)
+
+
+def test_spotify_volume_up_dispatch(monkeypatch) -> None:
+    """spotify_volume_up intent presses ctrl-up."""
+    pressed: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def hotkey(self, *keys): pressed.append("-".join(keys))
+        def press(self, key): pressed.append(key)
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: ActionResult(True, "ok", "ok"))
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("spotify_volume_up", 0.95, {}))
+    assert result.success
+    assert any("ctrl" in k and "up" in k for k in pressed)
+
+
+def test_discord_mute_dispatch(monkeypatch) -> None:
+    """discord_mute intent focuses Discord and sends ctrl+shift+m."""
+    focused: list[str] = []
+    pressed: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def hotkey(self, *keys): pressed.append("-".join(keys))
+        def press(self, key): pressed.append(key)
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("discord_mute", 0.95, {}))
+    assert result.success
+    assert "discord" in focused
+    assert any("ctrl" in k and "shift" in k and "m" in k for k in pressed)
+
+
+def test_discord_navigate_dispatch(monkeypatch) -> None:
+    """discord_navigate intent opens quick-nav and types the channel name."""
+    focused: list[str] = []
+    written: list[str] = []
+    hotkeys: list[str] = []
+    pressed: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def hotkey(self, *keys): hotkeys.append("-".join(keys))
+        def write(self, text, interval=0): written.append(text)
+        def press(self, key): pressed.append(key)
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("discord_navigate", 0.95, {"target": "general"}))
+    assert result.success
+    assert "discord" in focused
+    assert any("ctrl" in k and "k" in k for k in hotkeys)
+    assert "general" in written
+
+
+def test_slack_navigate_dispatch(monkeypatch) -> None:
+    """slack_navigate intent opens quick-nav and types the channel name."""
+    focused: list[str] = []
+    written: list[str] = []
+    hotkeys: list[str] = []
+    pressed: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def hotkey(self, *keys): hotkeys.append("-".join(keys))
+        def write(self, text, interval=0): written.append(text)
+        def press(self, key): pressed.append(key)
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("slack_navigate", 0.95, {"target": "engineering"}))
+    assert result.success
+    assert "slack" in focused
+    assert any("ctrl" in k and "k" in k for k in hotkeys)
+    assert "engineering" in written
+
+
+def test_browser_fill_form_dispatch(monkeypatch) -> None:
+    """browser_fill_form with string data parses and fills fields."""
+    focused: list[str] = []
+    written: list[str] = []
+    hotkeys: list[str] = []
+    pressed: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def hotkey(self, *keys): hotkeys.append("-".join(keys))
+        def write(self, text, interval=0): written.append(text)
+        def press(self, key): pressed.append(key)
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    # Pass data as JSON string
+    import json
+    data = json.dumps({"Username": "myuser", "Password": "secret"})
+    result = action.execute(IntentResult("browser_fill_form", 0.9, {"data": data}))
+    assert result.success
+    assert "myuser" in written
+    assert "secret" in written
+
+
+def test_browser_fill_form_empty_data(monkeypatch) -> None:
+    """browser_fill_form with empty data returns a failure."""
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: ActionResult(True, "ok", "ok"))
+
+    result = action.execute(IntentResult("browser_fill_form", 0.9, {"data": ""}))
+    assert not result.success

@@ -63,19 +63,22 @@ All tasks in the "Now" cycle have been completed successfully:
 
 ### Conversation, Memory, And Autonomy
 
-- Keep broad autonomy for safe actions without re-asking.
-- Add retrieval over:
-  - archived web research
-  - future conversation summaries
-  - future reminders and tasks
-  - learned preferences
+- [x] Keep broad autonomy for safe actions without re-asking.
+- [x] Add retrieval over:
+  - [x] archived web research
+  - [x] future conversation summaries
+  - [x] future reminders and tasks
+  - [x] learned preferences
 
 ### Better Desktop Automation
 
-- Add app-specific helpers for common apps instead of generic launching only.
-- Add browser automation beyond simple search:
-  - click basic controls
-  - fill simple forms
+- [x] Add app-specific helpers for common apps instead of generic launching only.
+  - [x] Spotify: play/pause, next/previous track, volume up/down.
+  - [x] Discord: mute/unmute, deafen, quick-nav to channel.
+  - [x] Slack: mute/unmute, quick-nav to channel.
+- [x] Add browser automation beyond simple search:
+  - [x] click basic controls (browser_click_control via pywinauto or Ctrl+F fallback)
+  - [x] fill simple forms (browser_fill_form via JSON or label:value pairs)
 - Add Windows UI automation for desktop apps beyond raw typing.
 - Add calculator workflow support inside opened apps when needed.
 - Add tests for Windows UI automation wrappers where possible.
@@ -310,3 +313,17 @@ All tasks in the "Now" cycle have been completed successfully:
   - Gemini failures fall back to the local model instead of breaking the request.
   - Local secret storage added for non-repo API key handling.
   - Regressions test suite coverage.
+- Conversation, Memory, and Autonomy retrieval:
+  - QA pipeline now pulls active reminders, alarms, and timers into LLM context.
+  - Learned preferences (preferred location, favorite sites, preferred apps, canonical aliases) included in QA context.
+  - Broad autonomy preserved: only destructive intents require confirmation.
+  - Regressions test suite coverage.
+- Better Desktop Automation, app-specific helpers pass:
+  - SpotifyHelper: play/pause, next/previous track, volume up/down via keyboard shortcuts.
+  - DiscordHelper: mute/unmute (Ctrl+Shift+M), deafen (Ctrl+Shift+D), quick-nav to channel/user (Ctrl+K).
+  - SlackHelper: mute/unmute, quick-nav to channel/user (Ctrl+K).
+  - BrowserHelper extended: browser_click_control (pywinauto with Ctrl+F fallback), browser_fill_form (JSON or label:value parsing).
+  - 13 new intents wired end-to-end: routing → dispatch → helper.
+  - 13 new capabilities registered in CapabilityRegistry.
+  - Routing conflict between browser_click_control and ui_click_control resolved by ordering patterns correctly.
+  - Regressions test suite coverage (161 tests passing).

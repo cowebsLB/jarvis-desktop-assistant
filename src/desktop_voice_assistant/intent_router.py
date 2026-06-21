@@ -124,9 +124,40 @@ class IntentRouter:
             return IntentResult("ui_click_coordinate", 0.95, {"x": match.group(1), "y": match.group(2)})
         if match := re.search(r"\b(?:write|type)\s+(.+?)\s+(?:at|on|coordinate)\s+(?:x\s*)?(\d+)[,\s]+(?:y\s*)?(\d+)\b", normalized):
             return IntentResult("ui_write_at_coordinate", 0.95, {"text": match.group(1).strip(), "x": match.group(2), "y": match.group(3)})
+        # Browser click control / fill form (must be before ui_click_control to avoid 'sign in' ambiguity)
+        if match := re.search(r"\bclick\s+(?:the\s+)?(.+?)\s+(?:button|link|tab|control)\s+(?:on|in)\s+(?:the\s+)?(?:browser|page|website)\b", normalized):
+            return IntentResult("browser_click_control", 0.9, {"control_name": match.group(1).strip()})
+        if match := re.search(r"\bfill\s+(?:the\s+)?(?:form|field)\s+(.+?)\s+(?:in|on)\s+(?:the\s+)?(?:browser|page)\b", normalized):
+            return IntentResult("browser_fill_form", 0.9, {"data": match.group(1).strip()})
+
         if match := re.search(r"\bclick\s+(?:button\s+)?(.+?)\s+in\s+(.+)\b", normalized):
             return IntentResult("ui_click_control", 0.95, {"control_name": match.group(1).strip(), "window_title": match.group(2).strip()})
 
+        # Spotify controls
+        if re.search(r"\b(?:pause|resume|play\s+pause|toggle\s+playback)\s+(?:spotify|music|song)\b", normalized) or normalized in {"pause spotify", "play spotify", "pause music", "resume music", "play pause"}:
+            return IntentResult("spotify_play_pause", 0.95, {})
+        if re.search(r"\b(?:next|skip)\s+(?:song|track)\b", normalized) or normalized in {"next song", "next track", "skip track", "skip song"}:
+            return IntentResult("spotify_next_track", 0.95, {})
+        if re.search(r"\b(?:previous|last|prev)\s+(?:song|track)\b", normalized) or normalized in {"previous song", "previous track", "last song"}:
+            return IntentResult("spotify_prev_track", 0.95, {})
+        if re.search(r"\b(?:volume\s+up|increase\s+volume|louder)\s+(?:spotify|music)?\b", normalized) or normalized in {"volume up", "louder", "turn up spotify"}:
+            return IntentResult("spotify_volume_up", 0.95, {})
+        if re.search(r"\b(?:volume\s+down|decrease\s+volume|quieter)\s+(?:spotify|music)?\b", normalized) or normalized in {"volume down", "quieter", "turn down spotify"}:
+            return IntentResult("spotify_volume_down", 0.95, {})
+
+        # Discord controls
+        if re.search(r"\b(?:mute|unmute)\s+(?:discord|microphone|mic)\b", normalized) or normalized in {"discord mute", "toggle mute"}:
+            return IntentResult("discord_mute", 0.95, {})
+        if re.search(r"\b(?:deafen|undeafen)\s+(?:discord)?\b", normalized) or normalized in {"deafen discord", "undeafen discord"}:
+            return IntentResult("discord_deafen", 0.95, {})
+        if match := re.search(r"\b(?:go to|navigate to|open)\s+(?:discord\s+)?(?:channel|server|user|dm)\s+(.+)$", normalized):
+            return IntentResult("discord_navigate", 0.95, {"target": match.group(1).strip()})
+
+        # Slack controls
+        if re.search(r"\b(?:mute|unmute)\s+slack\b", normalized) or normalized in {"mute slack", "unmute slack", "slack mute"}:
+            return IntentResult("slack_mute", 0.95, {})
+        if match := re.search(r"\b(?:go to|navigate to|open)\s+(?:slack\s+)?(?:channel|user|dm)\s+(.+)$", normalized):
+            return IntentResult("slack_navigate", 0.95, {"target": match.group(1).strip()})
 
         if match := re.match(r"^(type|dictate)\s+(.+)$", normalized, re.IGNORECASE):
             dictated_text = self._extract_after_command(text, match.group(1))

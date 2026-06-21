@@ -886,3 +886,52 @@ def test_send_email_requires_confirmation(monkeypatch) -> None:
     assert assistant.session.snapshot.pending_confirmation is None
     assistant.productivity.stop()
 
+
+def test_assistant_qa_retrieves_reminders_and_preferences(monkeypatch) -> None:
+    class FakeLLMWithContext:
+        def __init__(self):
+            self.last_context = ""
+        def answer_with_context(self, question: str, context: str) -> str:
+            self.last_context = context
+            return "Answer based on context"
+        def answer(self, question: str) -> str:
+            return "Simple Answer"
+
+    fake_llm = FakeLLMWithContext()
+    tts = FakeTTS()
+    history = FakeHistory()
+    action = ActionExecutor(Settings())
+    
+    # Store some preferences
+    action.memory.set_preference("preferred_location", "Paris, France")
+    action.memory.set_favorite_site("news", "https://news.ycombinator.com")
+    action.memory.remember("discord app", "discord")
+
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        action,
+        UnsupportedSTT("what are my preferences?"),
+        tts,
+        fake_llm,
+        FakeWeather(),
+        history,
+    )
+    
+    # Set up some reminders, alarms, and timers
+    assistant.productivity.reminders = [{"content": "buy milk", "trigger_time": "2026-06-22T08:00:00"}]
+    assistant.productivity.alarms = [{"trigger_time": "07:30"}]
+    assistant.productivity.timers = [{"duration_seconds": 300, "created_at": "12:00"}]
+
+    result = assistant._answer_question("what are my preferences?")
+    assert result == "Answer based on context"
+    
+    context = fake_llm.last_context
+    assert "Paris, France" in context
+    assert "news (https://news.ycombinator.com)" in context
+    assert "discord app -> discord" in context
+    assert "buy milk" in context
+    assert "07:30" in context
+    assert "300s" in context
+    assistant.productivity.stop()
+
