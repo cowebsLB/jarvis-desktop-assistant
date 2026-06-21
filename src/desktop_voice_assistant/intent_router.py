@@ -78,6 +78,36 @@ class IntentRouter:
         if re.search(r"\b(?:refresh|reload)\s+(?:this\s+)?page\b", normalized):
             return IntentResult("browser_refresh", 0.95, {})
 
+        # Notepad Write & Save
+        if match := re.search(r"\b(?:write|save)\s+(.+?)\s+in\s+notepad\s+and\s+save\s+as\s+(.+)\b", normalized):
+            return IntentResult("notepad_write_and_save", 0.95, {"text": match.group(1).strip(), "filename": match.group(2).strip()})
+        if match := re.search(r"\b(?:write|save)\s+(.+?)\s+and\s+save\s+as\s+(.+?)\s+in\s+notepad\b", normalized):
+            return IntentResult("notepad_write_and_save", 0.95, {"text": match.group(1).strip(), "filename": match.group(2).strip()})
+        if match := re.search(r"\bwrite\s+and\s+save\s+(.+?)\s+as\s+(.+?)\s+in\s+notepad\b", normalized):
+            return IntentResult("notepad_write_and_save", 0.95, {"text": match.group(1).strip(), "filename": match.group(2).strip()})
+
+        # Browser Search and Bookmark
+        if match := re.search(r"\bsearch\s+(?:the\s+)?(?:browser|web|internet)\s+for\s+(.+?)\s+and\s+bookmark\s*(?:the\s+)?(?:page|it)?\b", normalized):
+            return IntentResult("browser_search_and_bookmark", 0.95, {"query": match.group(1).strip()})
+        if match := re.search(r"\bsearch\s+(?:for\s+)?(.+?)\s+and\s+bookmark\s+(?:the\s+)?(?:page|it)\b", normalized):
+            return IntentResult("browser_search_and_bookmark", 0.95, {"query": match.group(1).strip()})
+        if match := re.search(r"\bsearch\s+and\s+bookmark\s+(.+)\b", normalized):
+            return IntentResult("browser_search_and_bookmark", 0.95, {"query": match.group(1).strip()})
+
+        # VSCode Open Terminal
+        if re.search(r"\bopen\s+(?:the\s+)?terminal\s+(?:pane\s+)?in\s+(?:vscode|visual\s+studio\s+code)\b", normalized) or re.search(r"\bopen\s+(?:vscode|visual\s+studio\s+code)\s+terminal\b", normalized):
+            return IntentResult("vscode_open_terminal", 0.95, {})
+
+        # UI Controls / Coordinate Actions
+        if match := re.search(r"\bdouble\s+click\s+(?:at\s+|coordinate\s+|on\s+)*(?:x\s*)?(\d+)[,\s]+(?:y\s*)?(\d+)\b", normalized):
+            return IntentResult("ui_double_click_coordinate", 0.95, {"x": match.group(1), "y": match.group(2)})
+        if match := re.search(r"\bclick\s+(?:at\s+|coordinate\s+|on\s+)*(?:x\s*)?(\d+)[,\s]+(?:y\s*)?(\d+)\b", normalized):
+            return IntentResult("ui_click_coordinate", 0.95, {"x": match.group(1), "y": match.group(2)})
+        if match := re.search(r"\b(?:write|type)\s+(.+?)\s+(?:at|on|coordinate)\s+(?:x\s*)?(\d+)[,\s]+(?:y\s*)?(\d+)\b", normalized):
+            return IntentResult("ui_write_at_coordinate", 0.95, {"text": match.group(1).strip(), "x": match.group(2), "y": match.group(3)})
+        if match := re.search(r"\bclick\s+(?:button\s+)?(.+?)\s+in\s+(.+)\b", normalized):
+            return IntentResult("ui_click_control", 0.95, {"control_name": match.group(1).strip(), "window_title": match.group(2).strip()})
+
 
         if match := re.match(r"^(type|dictate)\s+(.+)$", normalized, re.IGNORECASE):
             dictated_text = self._extract_after_command(text, match.group(1))

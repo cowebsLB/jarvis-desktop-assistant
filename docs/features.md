@@ -47,6 +47,13 @@
 - `recall_memory`
 - `weather`
 - `qa`
+- `notepad_write_and_save`
+- `browser_search_and_bookmark`
+- `vscode_open_terminal`
+- `ui_click_coordinate`
+- `ui_double_click_coordinate`
+- `ui_write_at_coordinate`
+- `ui_click_control`
 - `unsupported`
 
 ### Natural Language Tolerance
@@ -251,10 +258,29 @@ Current normalization handles:
 - Automatic routing fallback in `DesktopAssistant` when the regex-based `IntentRouter` returns `unsupported`.
 - Full unit tests for the fallback mechanism in [test_assistant.py](file:///C:/Users/user/OneDrive/Documents/projects/Desktop%20voice%20assitant/tests/test_assistant.py).
 
+### Contextual Database Retrieval & Syncing
+
+- Integrates structured memory tables in SQLite: `tasks`, `task_embeddings`, `conversation_turns`, and `conversation_embeddings`.
+- Automatically syncs all task mutations and completed conversation turns to SQLite in the background.
+- Embeds tasks and conversation turns using local semantic embeddings for hybrid vector + keyword search context retrieval.
+- Prefetches semantic history and task relevance scores to inject as context into LLM Q&A prompts.
+
+### App-Specific Helpers
+
+- **Notepad Helper**: Automatically opens or focuses Notepad, dictates content, triggers standard save dialogue shortcut (`Ctrl+S`), resolves clean Documents paths, and saves with automatic extension/dot normalization (e.g. recovering "notes txt" to "notes.txt").
+- **Browser Helper**: Automatically triggers web search queries and bookmarks the resulting page using browser shortcut hotkeys (`Ctrl+D` + `Enter`).
+- **VS Code Helper**: Automatically focuses or launches VS Code, and triggers the terminal pane opening shortcut (`Ctrl+``).
+
+### UI Control Recognition & Automation
+
+- Implements click/double-click coordinates mapping using `pyautogui` for basic button clicking.
+- Implements text dictation/writing at coordinate points.
+- Implements `pywinauto` child window UI control resolution based on UIA accessibility tree matching when library is present.
+
 ### Verification Baseline
 
 - automated test suite currently passes:
-  - `92/92`
+  - `106/106`
 
 ## Implemented But Limited
 
@@ -312,5 +338,4 @@ Current normalization handles:
 
 - true multi-step desktop workflows
 - custom wake words
-- conversational memory
 - spoken news, currency, holiday, or timezone features

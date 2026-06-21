@@ -57,3 +57,29 @@ def test_archive_marks_old_hits_as_stale(tmp_path: Path) -> None:
 
     assert len(hits) == 1
     assert hits[0].stale is True
+
+
+def test_archive_sync_and_search_tasks(tmp_path: Path) -> None:
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    tasks = [
+        {"id": "t1", "content": "buy sourdough bread", "created_at": "2026-06-21T03:00:00Z"},
+        {"id": "t2", "content": "fix the dishwasher", "created_at": "2026-06-21T03:05:00Z"}
+    ]
+    archive.sync_tasks(tasks)
+
+    results = archive.search_local("dishwasher")
+    assert len(results) == 1
+    assert results[0]["type"] == "task"
+    assert "dishwasher" in results[0]["content"]
+
+
+def test_archive_add_and_search_conversations(tmp_path: Path) -> None:
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    turn_id = archive.add_conversation_turn("What is your name?", "I am Jarvis.")
+    assert turn_id > 0
+
+    results = archive.search_local("Jarvis")
+    assert len(results) == 1
+    assert results[0]["type"] == "conversation"
+    assert "Jarvis" in results[0]["content"]
+

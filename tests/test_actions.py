@@ -5,7 +5,7 @@ from desktop_voice_assistant.actions import ActionExecutor
 from desktop_voice_assistant.app_memory import AppMemoryStore
 from desktop_voice_assistant.config import Settings
 from desktop_voice_assistant.filesystem_actions import FileMatch
-from desktop_voice_assistant.models import IntentResult
+from desktop_voice_assistant.models import IntentResult, ActionResult
 
 
 def test_unmatched_target_returns_discovery_failure() -> None:
@@ -301,4 +301,114 @@ def test_browser_hotkeys_dispatch(monkeypatch) -> None:
     result = action.execute(IntentResult("browser_refresh", 0.95, {}))
     assert result.success
     assert pressed[-1] == ("f5",)
+
+
+def test_notepad_write_and_save(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    written_text = []
+    hotkeys = []
+    pressed = []
+    popens = []
+    
+    class FakePyAutoGui:
+        def write(self, text, interval=0.0):
+            written_text.append(text)
+        def hotkey(self, *keys):
+            hotkeys.append(keys)
+        def press(self, key):
+            pressed.append(key)
+            
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+    import subprocess
+    monkeypatch.setattr(subprocess, "Popen", lambda args, shell=False: popens.append(args))
+    monkeypatch.setattr(action, "_focus_target", lambda target: ActionResult(False, "failed"))
+    
+    result = action.execute(IntentResult("notepad_write_and_save", 0.95, {"text": "hello world", "filename": "notes txt"}))
+    assert result.success
+    assert len(popens) == 1
+    assert "notepad" in popens[0][0]
+    assert written_text[0] == "hello world"
+    assert "notes.txt" in written_text[1]
+    assert hotkeys[0] == ("ctrl", "s")
+    assert pressed[0] == "enter"
+
+
+def test_browser_search_and_bookmark(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    searched = []
+    hotkeys = []
+    pressed = []
+    
+    class FakePyAutoGui:
+        def hotkey(self, *keys):
+            hotkeys.append(keys)
+        def press(self, key):
+            pressed.append(key)
+            
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+    monkeypatch.setattr(action, "_search_web", lambda query: searched.append(query))
+    
+    result = action.execute(IntentResult("browser_search_and_bookmark", 0.95, {"query": "python testing"}))
+    assert result.success
+    assert searched == ["python testing"]
+    assert hotkeys[0] == ("ctrl", "d")
+    assert pressed[0] == "enter"
+
+
+def test_vscode_open_terminal(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    hotkeys = []
+    
+    class FakePyAutoGui:
+        def hotkey(self, *keys):
+            hotkeys.append(keys)
+            
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+    monkeypatch.setattr(action, "_focus_target", lambda target: ActionResult(True, "success"))
+    
+    result = action.execute(IntentResult("vscode_open_terminal", 0.95, {}))
+    assert result.success
+    assert hotkeys[0] == ("ctrl", "`")
+
+
+def test_ui_coordinate_actions(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    clicked = []
+    double_clicked = []
+    written = []
+    
+    class FakePyAutoGui:
+        def click(self, x, y):
+            clicked.append((x, y))
+        def doubleClick(self, x, y):
+            double_clicked.append((x, y))
+        def write(self, text, interval=0.0):
+            written.append(text)
+            
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+    
+    # Click coordinate
+    res_click = action.execute(IntentResult("ui_click_coordinate", 0.95, {"x": "100", "y": "200"}))
+    assert res_click.success
+    assert clicked == [(100, 200)]
+    
+    # Double click coordinate
+    res_dbclick = action.execute(IntentResult("ui_double_click_coordinate", 0.95, {"x": "300", "y": "400"}))
+    assert res_dbclick.success
+    assert double_clicked == [(300, 400)]
+    
+    # Write at coordinate
+    res_write = action.execute(IntentResult("ui_write_at_coordinate", 0.95, {"x": "50", "y": "150", "text": "hello"}))
+    assert res_write.success
+    assert clicked[-1] == (50, 150)
+    assert written == ["hello"]
+
+
+def test_ui_click_control_failure_without_pywinauto(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda target: ActionResult(True, "success"))
+    
+    result = action.execute(IntentResult("ui_click_control", 0.95, {"window_title": "notepad", "control_name": "Save"}))
+    assert not result.success
+    assert "pywinauto not installed" in result.message
 

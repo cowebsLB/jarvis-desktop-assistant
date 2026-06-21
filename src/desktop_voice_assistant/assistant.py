@@ -242,6 +242,9 @@ class DesktopAssistant:
             result = ActionResult(True, msg, msg)
         elif intent.intent == "add_task":
             self.productivity.add_task(intent.slots["task"])
+            archive = getattr(self.researcher, "archive", None)
+            if archive:
+                archive.sync_tasks(self.productivity.tasks, getattr(self.researcher, "embedder", None))
             msg = f"Added '{intent.slots['task']}' to your tasks."
             result = ActionResult(True, msg, msg)
         elif intent.intent == "list_tasks":
@@ -253,6 +256,9 @@ class DesktopAssistant:
             result = ActionResult(True, msg, msg)
         elif intent.intent == "clear_tasks":
             self.productivity.clear_tasks()
+            archive = getattr(self.researcher, "archive", None)
+            if archive:
+                archive.sync_tasks([], getattr(self.researcher, "embedder", None))
             msg = "Task list cleared."
             result = ActionResult(True, msg, msg)
         elif intent.intent == "clear_timers":
@@ -299,6 +305,14 @@ class DesktopAssistant:
 
         # Save to conversational turn memory
         self.actions.memory.add_turn(request.transcript, result.spoken_reply or result.message, self.llm)
+        archive = getattr(self.researcher, "archive", None)
+        if archive:
+            turn_id = archive.add_conversation_turn(request.transcript, result.spoken_reply or result.message)
+            embedder = getattr(self.researcher, "embedder", None)
+            if embedder:
+                vector = embedder.embed(f"User: {request.transcript}\nJarvis: {result.spoken_reply or result.message}")
+                if vector:
+                    archive.store_conversation_embedding(turn_id, vector)
 
         self._update_session(intent, result)
 
@@ -321,14 +335,38 @@ class DesktopAssistant:
         return result
 
     def _answer_question(self, query: str) -> str:
+        # Check local database knowledge first (unifies research, tasks, and conversation history)
+        archive = getattr(self.researcher, "archive", None)
+        if archive:
+            local_hits = archive.search_local(
+                query,
+                limit=self.settings.archive_recall_limit,
+                embedder=getattr(self.researcher, "embedder", None)
+            )
+            if local_hits:
+                context_blocks = []
+                for hit in local_hits:
+                    if hit["type"] == "research":
+                        context_blocks.append(f"[Stored Research] Title: {hit['title']}\nContent: {hit['content'][:1500]}")
+                    elif hit["type"] == "task":
+                        context_blocks.append(f"[Active Task] Task Description: {hit['content']}")
+                    elif hit["type"] == "conversation":
+                        context_blocks.append(f"[Past Conversation Turn]\n{hit['content']}")
+                
+                context = "\n\n---\n\n".join(context_blocks)
+                prompt = (
+                    f"Question: {query}\n\n"
+                    "Answer the question concisely based only on the provided local records context. "
+                    "If the records show a task or past conversation, summarize or respond directly referencing that local context.\n\n"
+                    f"Local Records Context:\n{context}"
+                )
+                return self.llm.answer_with_context(query, prompt)
+
+        # Fallback to recent conversation turn context
         history_context = self.actions.memory.get_turns_context()
         if history_context:
             return self.llm.answer_with_context(query, history_context)
 
-        if self.researcher:
-            recall = self.researcher.recall(query, limit=self.settings.archive_recall_limit)
-            if recall:
-                return recall.answer
         return self.llm.answer(query)
 
     def _handle_web_search(self, query: str) -> ActionResult:

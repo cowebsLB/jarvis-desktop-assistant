@@ -64,6 +64,46 @@ class AssistantArchive:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_embeddings (
+                    task_id TEXT PRIMARY KEY,
+                    vector_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS conversation_turns (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_msg TEXT NOT NULL,
+                    assistant_msg TEXT NOT NULL,
+                    summary TEXT,
+                    timestamp TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS conversation_embeddings (
+                    turn_id INTEGER PRIMARY KEY,
+                    vector_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(turn_id) REFERENCES conversation_turns(id) ON DELETE CASCADE
+                )
+                """
+            )
 
     def store_sources(self, query: str, sources: list[ResearchSource], page_content: dict[str, str]) -> int:
         if not sources:
@@ -187,3 +227,160 @@ class AssistantArchive:
             fetched = fetched.replace(tzinfo=UTC)
         delta = datetime.now(UTC) - fetched.astimezone(UTC)
         return max(0, delta.days)
+
+    def sync_tasks(self, tasks: list[dict[str, Any]], embedder = None) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM tasks")
+            conn.execute("DELETE FROM task_embeddings")
+            for t in tasks:
+                conn.execute(
+                    "INSERT INTO tasks (id, content, created_at) VALUES (?, ?, ?)",
+                    (t["id"], t["content"], t["created_at"])
+                )
+                if embedder:
+                    vector = embedder.embed(t["content"])
+                    if vector:
+                        conn.execute(
+                            "INSERT INTO task_embeddings (task_id, vector_json, updated_at) VALUES (?, ?, ?)",
+                            (t["id"], json.dumps(vector), datetime.now(UTC).isoformat())
+                        )
+
+    def add_conversation_turn(self, user_msg: str, assistant_msg: str, summary: str | None = None) -> int:
+        timestamp = datetime.now(UTC).isoformat()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "INSERT INTO conversation_turns (user_msg, assistant_msg, summary, timestamp) VALUES (?, ?, ?, ?)",
+                (user_msg, assistant_msg, summary or "", timestamp)
+            )
+            return cursor.lastrowid
+
+    def store_conversation_embedding(self, turn_id: int, vector: list[float]) -> None:
+        updated_at = datetime.now(UTC).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO conversation_embeddings (turn_id, vector_json, updated_at) VALUES (?, ?, ?)",
+                (turn_id, json.dumps(vector), updated_at)
+            )
+
+    def search_local(self, query: str, limit: int = 3, embedder = None) -> list[dict[str, Any]]:
+        vector = None
+        if embedder:
+            vector = embedder.embed(query)
+        if vector:
+            return self._semantic_search_all(vector, limit=limit)
+        return self._full_text_search_all(query, limit=limit)
+
+    def _semantic_search_all(self, query_vector: list[float], limit: int = 3) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        with self._connect() as conn:
+            # 1. Web pages
+            rows = conn.execute(
+                "SELECT p.title, p.url, p.summary, p.content, p.fetched_at, e.vector_json FROM web_pages p JOIN web_page_embeddings e ON e.url = p.url"
+            ).fetchall()
+            for r in rows:
+                score = self._cosine_similarity(query_vector, json.loads(r["vector_json"]))
+                if score >= 0.35:
+                    results.append({
+                        "type": "research",
+                        "title": r["title"],
+                        "url": r["url"],
+                        "summary": r["summary"],
+                        "content": r["content"],
+                        "score": score,
+                        "date": r["fetched_at"]
+                    })
+            
+            # 2. Tasks
+            rows = conn.execute(
+                "SELECT t.id, t.content, t.created_at, e.vector_json FROM tasks t JOIN task_embeddings e ON e.task_id = t.id"
+            ).fetchall()
+            for r in rows:
+                score = self._cosine_similarity(query_vector, json.loads(r["vector_json"]))
+                if score >= 0.35:
+                    results.append({
+                        "type": "task",
+                        "title": "Active Task",
+                        "content": r["content"],
+                        "score": score,
+                        "date": r["created_at"]
+                    })
+            
+            # 3. Conversation turns
+            rows = conn.execute(
+                "SELECT c.id, c.user_msg, c.assistant_msg, c.summary, c.timestamp, e.vector_json FROM conversation_turns c JOIN conversation_embeddings e ON e.turn_id = c.id"
+            ).fetchall()
+            for r in rows:
+                score = self._cosine_similarity(query_vector, json.loads(r["vector_json"]))
+                if score >= 0.35:
+                    results.append({
+                        "type": "conversation",
+                        "title": "Past Conversation",
+                        "content": f"User: {r['user_msg']}\nJarvis: {r['assistant_msg']}",
+                        "score": score,
+                        "date": r["timestamp"]
+                    })
+                    
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return results[:limit]
+
+    def _full_text_search_all(self, query: str, limit: int = 3) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        like = f"%{query.lower()}%"
+        with self._connect() as conn:
+            # 1. Web pages
+            rows = conn.execute(
+                """
+                SELECT title, url, summary, content, fetched_at FROM web_pages
+                WHERE lower(title) LIKE ? OR lower(summary) LIKE ? OR lower(content) LIKE ?
+                ORDER BY fetched_at DESC LIMIT ?
+                """,
+                (like, like, like, limit)
+            ).fetchall()
+            for r in rows:
+                results.append({
+                    "type": "research",
+                    "title": r["title"],
+                    "url": r["url"],
+                    "summary": r["summary"],
+                    "content": r["content"],
+                    "score": 1.0,
+                    "date": r["fetched_at"]
+                })
+            
+            # 2. Tasks
+            rows = conn.execute(
+                """
+                SELECT id, content, created_at FROM tasks
+                WHERE lower(content) LIKE ?
+                ORDER BY created_at DESC LIMIT ?
+                """,
+                (like, limit)
+            ).fetchall()
+            for r in rows:
+                results.append({
+                    "type": "task",
+                    "title": "Active Task",
+                    "content": r["content"],
+                    "score": 1.0,
+                    "date": r["created_at"]
+                })
+            
+            # 3. Conversation turns
+            rows = conn.execute(
+                """
+                SELECT id, user_msg, assistant_msg, timestamp FROM conversation_turns
+                WHERE lower(user_msg) LIKE ? OR lower(assistant_msg) LIKE ?
+                ORDER BY timestamp DESC LIMIT ?
+                """,
+                (like, like, limit)
+            ).fetchall()
+            for r in rows:
+                results.append({
+                    "type": "conversation",
+                    "title": "Past Conversation",
+                    "content": f"User: {r['user_msg']}\nJarvis: {r['assistant_msg']}",
+                    "score": 1.0,
+                    "date": r["timestamp"]
+                })
+        results.sort(key=lambda x: x["date"], reverse=True)
+        return results[:limit]

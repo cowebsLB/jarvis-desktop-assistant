@@ -19,6 +19,8 @@ from .config import APP_DIR, Settings
 from .filesystem_actions import DesktopControl
 from .models import ActionResult, IntentResult, OpenTargetPreview
 from .response_style import ResponseStyle
+from .app_helpers import NotepadHelper, BrowserHelper, VSCodeHelper
+from .ui_control import UIController
 
 
 LOGGER = logging.getLogger(__name__)
@@ -30,6 +32,10 @@ class ActionExecutor:
         self._pyautogui = None
         self.memory = AppMemoryStore()
         self.desktop = DesktopControl()
+        self.notepad_helper = NotepadHelper(self)
+        self.browser_helper = BrowserHelper(self)
+        self.vscode_helper = VSCodeHelper(self)
+        self.ui_controller = UIController(self)
 
     def execute(self, intent: IntentResult) -> ActionResult:
         if intent.intent == "dictate":
@@ -72,6 +78,20 @@ class ActionExecutor:
             return self._browser_hotkey("alt", "right", message="Went forward.")
         if intent.intent == "browser_refresh":
             return self._browser_hotkey("f5", message="Refreshed page.")
+        if intent.intent == "notepad_write_and_save":
+            return self.notepad_helper.write_and_save(intent.slots["text"], intent.slots["filename"])
+        if intent.intent == "browser_search_and_bookmark":
+            return self.browser_helper.search_and_bookmark(intent.slots["query"])
+        if intent.intent == "vscode_open_terminal":
+            return self.vscode_helper.open_terminal()
+        if intent.intent == "ui_click_coordinate":
+            return self.ui_controller.click_coordinate(int(intent.slots["x"]), int(intent.slots["y"]))
+        if intent.intent == "ui_double_click_coordinate":
+            return self.ui_controller.double_click_coordinate(int(intent.slots["x"]), int(intent.slots["y"]))
+        if intent.intent == "ui_write_at_coordinate":
+            return self.ui_controller.write_to_coordinate(int(intent.slots["x"]), int(intent.slots["y"]), intent.slots["text"])
+        if intent.intent == "ui_click_control":
+            return self.ui_controller.click_control(intent.slots["window_title"], intent.slots["control_name"])
         if intent.intent == "unsupported":
             return ActionResult(
                 False,

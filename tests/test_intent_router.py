@@ -172,3 +172,67 @@ def test_route_open_with_question_mark() -> None:
 def test_route_timer_cancel_instead_of_set() -> None:
     result = IntentRouter().route("Can you remove the timer for 10 minutes?")
     assert result.intent == "clear_timers"
+
+
+def test_route_notepad_write_and_save() -> None:
+    result = IntentRouter().route("write hello world and save as notes.txt in notepad")
+    assert result.intent == "notepad_write_and_save"
+    assert result.slots["text"] == "hello world"
+    assert result.slots["filename"] == "notes txt"
+
+    result = IntentRouter().route("write log entries in notepad and save as work.log")
+    assert result.intent == "notepad_write_and_save"
+    assert result.slots["text"] == "log entries"
+    assert result.slots["filename"] == "work log"
+
+
+def test_route_browser_search_and_bookmark() -> None:
+    result = IntentRouter().route("search for python testing and bookmark it")
+    assert result.intent == "browser_search_and_bookmark"
+    assert result.slots["query"] == "python testing"
+
+    result = IntentRouter().route("search browser for book reviews and bookmark")
+    assert result.intent == "browser_search_and_bookmark"
+    assert result.slots["query"] == "book reviews"
+
+
+def test_route_vscode_open_terminal() -> None:
+    result = IntentRouter().route("open terminal in vscode")
+    assert result.intent == "vscode_open_terminal"
+
+    result = IntentRouter().route("open vscode terminal")
+    assert result.intent == "vscode_open_terminal"
+
+
+def test_route_ui_click_coordinate() -> None:
+    result = IntentRouter().route("click at 100 200")
+    assert result.intent == "ui_click_coordinate"
+    assert result.slots["x"] == "100"
+    assert result.slots["y"] == "200"
+
+    result = IntentRouter().route("click coordinate 350, 420")
+    assert result.intent == "ui_click_coordinate"
+    assert result.slots["x"] == "350"
+    assert result.slots["y"] == "420"
+
+
+def test_route_ui_double_click_coordinate() -> None:
+    result = IntentRouter().route("double click at 100 200")
+    assert result.intent == "ui_double_click_coordinate"
+    assert result.slots["x"] == "100"
+    assert result.slots["y"] == "200"
+
+
+def test_route_ui_write_at_coordinate() -> None:
+    result = IntentRouter().route("write hello world at 100 200")
+    assert result.intent == "ui_write_at_coordinate"
+    assert result.slots["text"] == "hello world"
+    assert result.slots["x"] == "100"
+    assert result.slots["y"] == "200"
+
+
+def test_route_ui_click_control() -> None:
+    result = IntentRouter().route("click button Save in notepad")
+    assert result.intent == "ui_click_control"
+    assert result.slots["control_name"] == "save"
+    assert result.slots["window_title"] == "notepad"

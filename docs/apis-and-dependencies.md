@@ -62,10 +62,15 @@
 ### pyautogui
 
 - text typing into active window
+- click, double-click, and write operations at screen coordinate points
+
+### pywinauto (Optional)
+
+- automation of child window controls (e.g., buttons, inputs) using accessibility UIA tree bindings
 
 ### sqlite3
 
-- built-in local database engine for long-lived research archive
+- built-in local database engine for long-lived research archive, tasks list, task embeddings, conversation turns, and conversation embeddings
 
 ## External APIs
 

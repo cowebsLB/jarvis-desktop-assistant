@@ -339,6 +339,80 @@ class CapabilityRegistry:
             examples=["what is the capital of France", "tell me the capital of Lebanon"]
         ))
 
+        # notepad_write_and_save
+        self.register(Capability(
+            intent="notepad_write_and_save",
+            description="Write content in Notepad and save it to a file.",
+            slots=[
+                SlotInfo("text", "The text content to write."),
+                SlotInfo("filename", "The filename to save the text to.")
+            ],
+            examples=["write hello world and save as notes.txt in notepad", "write text and save as file.txt in notepad"]
+        ))
+
+        # browser_search_and_bookmark
+        self.register(Capability(
+            intent="browser_search_and_bookmark",
+            description="Search for a query in the browser and bookmark the page.",
+            slots=[
+                SlotInfo("query", "The search query string to look up and bookmark.")
+            ],
+            examples=["search for python testing and bookmark it", "search browser for book reviews and bookmark"]
+        ))
+
+        # vscode_open_terminal
+        self.register(Capability(
+            intent="vscode_open_terminal",
+            description="Open the terminal pane in Visual Studio Code.",
+            slots=[],
+            examples=["open terminal in vscode", "open vscode terminal"]
+        ))
+
+        # ui_click_coordinate
+        self.register(Capability(
+            intent="ui_click_coordinate",
+            description="Click at specified screen coordinate coordinates (x, y).",
+            slots=[
+                SlotInfo("x", "The X coordinate value as a string."),
+                SlotInfo("y", "The Y coordinate value as a string.")
+            ],
+            examples=["click at 100 200", "click coordinate 300 400"]
+        ))
+
+        # ui_double_click_coordinate
+        self.register(Capability(
+            intent="ui_double_click_coordinate",
+            description="Double click at specified screen coordinate coordinates (x, y).",
+            slots=[
+                SlotInfo("x", "The X coordinate value as a string."),
+                SlotInfo("y", "The Y coordinate value as a string.")
+            ],
+            examples=["double click at 100 200", "double click coordinate 300 400"]
+        ))
+
+        # ui_write_at_coordinate
+        self.register(Capability(
+            intent="ui_write_at_coordinate",
+            description="Focus and write text at specified screen coordinate coordinates (x, y).",
+            slots=[
+                SlotInfo("x", "The X coordinate value as a string."),
+                SlotInfo("y", "The Y coordinate value as a string."),
+                SlotInfo("text", "The text content to write.")
+            ],
+            examples=["write hello world at 100 200", "type login details at 50 100"]
+        ))
+
+        # ui_click_control
+        self.register(Capability(
+            intent="ui_click_control",
+            description="Click a named window control in a target application window.",
+            slots=[
+                SlotInfo("control_name", "The name of the button or control to click."),
+                SlotInfo("window_title", "The title of the target application window.")
+            ],
+            examples=["click button Save in notepad", "click File in chrome"]
+        ))
+
     def format_for_prompt(self) -> str:
         lines = [
             "Intent Routing Guidelines:",
