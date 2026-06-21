@@ -36,6 +36,12 @@ class ActionExecutor:
         self.browser_helper = BrowserHelper(self)
         self.vscode_helper = VSCodeHelper(self)
         self.ui_controller = UIController(self)
+        self._scanned_apps: dict[str, str] = {}
+        
+        import sys
+        if "pytest" not in sys.modules:
+            import threading
+            threading.Thread(target=self._scan_installed_apps, daemon=True, name="app-scanner").start()
 
     def execute(self, intent: IntentResult) -> ActionResult:
         if intent.intent == "dictate":
@@ -406,8 +412,43 @@ class ActionExecutor:
                 ordered.append(lowered)
         return ordered
 
-    @staticmethod
-    def _launch_target(target: str, spoken_name: str) -> None:
+    def _scan_installed_apps(self) -> None:
+        try:
+            import json
+            import subprocess
+            cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", "Get-StartApps | Select-Object Name, AppID | ConvertTo-Json -Compress"]
+            
+            startupinfo = None
+            if hasattr(subprocess, "STARTUPINFO"):
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+
+            result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout)
+                if isinstance(data, dict):
+                    data = [data]
+                
+                scanned = {}
+                for app in data:
+                    if isinstance(app, dict) and "Name" in app and "AppID" in app:
+                        name = app["Name"]
+                        appid = app["AppID"]
+                        if name and appid:
+                            # Normalize name for mapping key
+                            normalized_name = self._normalize_target_name(name)
+                            scanned[normalized_name] = appid
+                self._scanned_apps = scanned
+                LOGGER.info("Successfully scanned %d installed apps.", len(scanned))
+        except Exception as exc:
+            LOGGER.warning("Failed to scan installed apps: %s", exc)
+
+    def _launch_target(self, target: str, spoken_name: str) -> None:
+        if target in self._scanned_apps.values() or "!" in target or target.startswith("{") or "shell:AppsFolder" in target:
+            subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{target}"], shell=False)
+            return
+
         if "://" in target or target.endswith(":") or target.lower().endswith(".lnk"):
             os.startfile(target)  # type: ignore[attr-defined]
             return
@@ -458,6 +499,10 @@ class ActionExecutor:
         return aliases.get(collapsed, collapsed)
 
     def _resolve_installed_app(self, target: str) -> str | None:
+        normalized = self._normalize_target_name(target)
+        if normalized in self._scanned_apps:
+            return self._scanned_apps[normalized]
+
         for candidate in self._candidate_executable_names(target):
             if path := shutil.which(candidate):
                 return path
@@ -500,6 +545,7 @@ class ActionExecutor:
     def _installed_app_catalog(self) -> list[str]:
         names = set(self.settings.app_allowlist) | set(self.memory.snapshot())
         names.update({"calculator", "chrome", "notepad", "settings", "visual studio code"})
+        names.update(self._scanned_apps.keys())
 
         shortcut_roots = [
             Path(os.environ.get("APPDATA", "")) / r"Microsoft\Windows\Start Menu\Programs",

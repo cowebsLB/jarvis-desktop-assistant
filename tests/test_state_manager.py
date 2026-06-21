@@ -51,3 +51,13 @@ def test_state_manager_allows_confirmation_and_clarification_reset_to_wake_liste
     manager2 = StateManager(RuntimeState.CLARIFYING)
     manager2.transition(RuntimeState.WAKE_LISTENING)
     assert manager2.current == RuntimeState.WAKE_LISTENING
+
+    # AWAITING_CONFIRMATION -> CAPTURING_COMMAND
+    manager3 = StateManager(RuntimeState.AWAITING_CONFIRMATION)
+    manager3.transition(RuntimeState.CAPTURING_COMMAND)
+    assert manager3.current == RuntimeState.CAPTURING_COMMAND
+
+    # CLARIFYING -> CAPTURING_COMMAND
+    manager4 = StateManager(RuntimeState.CLARIFYING)
+    manager4.transition(RuntimeState.CAPTURING_COMMAND)
+    assert manager4.current == RuntimeState.CAPTURING_COMMAND

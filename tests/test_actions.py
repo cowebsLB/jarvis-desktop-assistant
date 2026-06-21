@@ -66,7 +66,8 @@ def test_launch_target_uses_startfile_for_shortcuts(monkeypatch) -> None:
     monkeypatch.setattr(subprocess, "Popen", lambda args, shell=False: popens.append(args))
 
     # Test shortcut path
-    ActionExecutor._launch_target(r"C:\Apps\Discord.lnk", "discord")
+    executor = ActionExecutor(Settings())
+    executor._launch_target(r"C:\Apps\Discord.lnk", "discord")
     assert opened == [r"C:\Apps\Discord.lnk"]
     assert popens == []
 
@@ -425,4 +426,57 @@ def test_ui_click_control_failure_without_pywinauto(monkeypatch) -> None:
     result = action.execute(IntentResult("ui_click_control", 0.95, {"window_title": "notepad", "control_name": "Save"}))
     assert not result.success
     assert "pywinauto not installed" in result.message
+
+
+def test_action_executor_scan_installed_apps(monkeypatch) -> None:
+    import json
+    import subprocess
+    from unittest.mock import MagicMock
+    from desktop_voice_assistant.actions import ActionExecutor
+    from desktop_voice_assistant.config import Settings
+    from desktop_voice_assistant.models import IntentResult
+
+    mock_output = json.dumps([
+        {"Name": "Fake Calculator App", "AppID": "Microsoft.FakeCalculator_8wekyb3d8bbwe!App"},
+        {"Name": "System Settings App", "AppID": "windows.fakecontrolpanel!App"}
+    ])
+
+    class FakeCompletedProcess:
+        def __init__(self, stdout, returncode):
+            self.stdout = stdout
+            self.returncode = returncode
+
+    def mock_run(*args, **kwargs):
+        return FakeCompletedProcess(mock_output, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    executor = ActionExecutor(Settings())
+    # Manually run the scanner since thread is bypassed in pytest
+    executor._scan_installed_apps()
+
+    assert "fake calculator" in executor._scanned_apps
+    assert executor._scanned_apps["fake calculator"] == "Microsoft.FakeCalculator_8wekyb3d8bbwe!App"
+    assert "settings" in executor._scanned_apps
+    assert executor._scanned_apps["settings"] == "windows.fakecontrolpanel!App"
+
+    # Test resolving
+    resolved = executor._resolve_installed_app("fake calculator")
+    assert resolved == "Microsoft.FakeCalculator_8wekyb3d8bbwe!App"
+
+    # Test catalog listing includes the scanned apps
+    catalog = executor._installed_app_catalog()
+    assert "fake calculator" in catalog
+    assert "settings" in catalog
+
+    # Test launching AppID using explorer shell
+    launched_cmd = []
+    def mock_popen(args, **kwargs):
+        launched_cmd.append(args)
+        return MagicMock()
+
+    monkeypatch.setattr(subprocess, "Popen", mock_popen)
+
+    executor._launch_target("Microsoft.FakeCalculator_8wekyb3d8bbwe!App", "fake calculator")
+    assert launched_cmd == [["explorer.exe", "shell:AppsFolder\\Microsoft.FakeCalculator_8wekyb3d8bbwe!App"]]
 
