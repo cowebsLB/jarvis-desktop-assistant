@@ -4,6 +4,13 @@ from desktop_voice_assistant.config import Settings
 from desktop_voice_assistant.intent_router import IntentRouter
 from desktop_voice_assistant.models import ActionResult, OpenTargetPreview, ResearchResult, ResearchSource, RuntimeState, TranscriptResult
 from desktop_voice_assistant.session import SessionSnapshot
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolate_productivity_db(tmp_path, monkeypatch):
+    import desktop_voice_assistant.productivity as prod
+    monkeypatch.setattr(prod, "PRODUCTIVITY_PATH", tmp_path / "productivity.json")
 
 
 class FakeTTS:

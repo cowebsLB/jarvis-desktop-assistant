@@ -52,8 +52,8 @@ def calculate_alarm_time(hour: int, minute: int, period: str) -> datetime:
 
 
 class ProductivityManager:
-    def __init__(self, path: Path = PRODUCTIVITY_PATH, on_notification: Callable[[str], None] | None = None) -> None:
-        self.path = path
+    def __init__(self, path: Path | None = None, on_notification: Callable[[str], None] | None = None) -> None:
+        self.path = path or PRODUCTIVITY_PATH
         self.on_notification = on_notification
         self.lock = threading.Lock()
         self.active = False
