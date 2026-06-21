@@ -7,6 +7,7 @@ import threading
 import webbrowser
 import tkinter as tk
 from typing import Any
+from PIL import Image, ImageDraw, ImageTk
 
 from .config import Settings
 from .models import RuntimeState, ResearchSource
@@ -109,7 +110,7 @@ class FloatingHud:
 
     def _ui_wake_detected(self) -> None:
         self.wake_pulse_active = True
-        self.wake_pulse_radius = 15.0
+        self.wake_pulse_radius = 45.0
 
     def _ui_state_change(self, state: RuntimeState, reason: str | None) -> None:
         self.state = state
@@ -160,7 +161,7 @@ class FloatingHud:
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.96)
-        self.root.configure(bg="#0F172A")
+        self.root.configure(bg="#0B0F19")
 
         # Geometry
         x = self.settings.hud_position_x
@@ -187,19 +188,42 @@ class FloatingHud:
         self.root = None
         self.thread = None
 
+    def _create_card(self, parent: tk.Widget, title: str, title_color: str) -> tuple[tk.Frame, tk.Frame]:
+        card = tk.Frame(
+            parent,
+            bg="#131E35",
+            highlightthickness=1,
+            highlightbackground="#1E2E4A",
+            bd=0
+        )
+        title_lbl = tk.Label(
+            card,
+            text=title,
+            font=("Consolas", 8, "bold"),
+            fg=title_color,
+            bg="#131E35",
+            anchor="w"
+        )
+        title_lbl.pack(fill="x", padx=8, pady=(4, 2))
+        sep = tk.Frame(card, height=1, bg="#1E2E4A")
+        sep.pack(fill="x", padx=6, pady=(0, 4))
+        inner = tk.Frame(card, bg="#131E35")
+        inner.pack(fill="both", expand=True, padx=8, pady=(0, 6))
+        return card, inner
+
     def _create_widgets(self) -> None:
         if not self.root:
             return
 
         # Top Bar Frame (Contains Orb, Status, Chevron)
-        self.top_frame = tk.Frame(self.root, bg="#1E293B", cursor="fleur")
+        self.top_frame = tk.Frame(self.root, bg="#0B0F19", cursor="fleur")
         self.top_frame.pack(fill="x", side="top")
         self.top_frame.bind("<Button-1>", self._on_drag_start)
         self.top_frame.bind("<B1-Motion>", self._on_drag_motion)
         self.top_frame.bind("<ButtonRelease-1>", self._on_drag_release)
 
         # Glowing Orb Canvas
-        self.canvas = tk.Canvas(self.top_frame, width=60, height=60, bg="#1E293B", highlightthickness=0)
+        self.canvas = tk.Canvas(self.top_frame, width=60, height=60, bg="#0B0F19", highlightthickness=0)
         self.canvas.pack(side="left", padx=5, pady=5)
         self.canvas.bind("<Button-1>", self._on_drag_start)
         self.canvas.bind("<B1-Motion>", self._on_drag_motion)
@@ -214,7 +238,7 @@ class FloatingHud:
             text="Jarvis: Idle",
             font=("Segoe UI", 10, "bold"),
             fg="#38BDF8",
-            bg="#1E293B",
+            bg="#0B0F19",
             anchor="w"
         )
         self.status_lbl.pack(side="left", fill="x", expand=True, padx=5)
@@ -227,162 +251,129 @@ class FloatingHud:
             self.top_frame,
             text="▲",
             font=("Segoe UI", 9, "bold"),
-            fg="#94A3B8",
-            bg="#1E293B",
+            fg="#64748B",
+            bg="#0B0F19",
             activeforeground="#F1F5F9",
-            activebackground="#334155",
+            activebackground="#131E35",
             bd=0,
             relief="flat",
             padx=10,
             command=self._toggle_expand
         )
         self.expand_btn.pack(side="right", fill="y", padx=5)
+        self.expand_btn.bind("<Enter>", lambda e: self.expand_btn.config(fg="#F1F5F9", bg="#131E35"))
+        self.expand_btn.bind("<Leave>", lambda e: self.expand_btn.config(fg="#64748B", bg="#0B0F19"))
 
         # Details Panel Container (Packed when expanded)
-        self.details_frame = tk.Frame(self.root, bg="#0F172A")
+        self.details_frame = tk.Frame(self.root, bg="#0B0F19")
         
-        # 1. Transcript Box
-        self.transcript_frame = tk.Frame(self.details_frame, bg="#1E293B", bd=1, relief="flat")
-        self.transcript_frame.pack(fill="x", pady=4, padx=2)
+        # 1. Transcript Card
+        self.transcript_card, self.transcript_inner = self._create_card(self.details_frame, "[ USER COMMAND ]", "#38BDF8")
+        self.transcript_card.pack(fill="x", pady=4, padx=2)
         
         self.transcript_lbl = tk.Label(
-            self.transcript_frame,
+            self.transcript_inner,
             text="(Waiting for command...)",
             font=("Segoe UI", 9, "italic"),
             fg="#E2E8F0",
-            bg="#1E293B",
+            bg="#131E35",
             justify="left",
             anchor="w",
             wraplength=320
         )
-        self.transcript_lbl.pack(fill="x", padx=8, pady=6)
+        self.transcript_lbl.pack(fill="x", pady=2)
 
-        # 2. Intent Display
         self.intent_lbl = tk.Label(
-            self.details_frame,
-            text="Intent: None",
-            font=("Segoe UI", 8, "bold"),
+            self.transcript_inner,
+            text="INTENT: None",
+            font=("Consolas", 8, "bold"),
             fg="#94A3B8",
-            bg="#0F172A",
+            bg="#131E35",
             anchor="w"
         )
-        self.intent_lbl.pack(fill="x", pady=2, padx=4)
+        self.intent_lbl.pack(fill="x", pady=(4, 0))
 
-        # 3. Plan & Progress Section
-        self.steps_frame = tk.LabelFrame(
-            self.details_frame,
-            text="PLAN & PROGRESS",
-            font=("Segoe UI", 8, "bold"),
-            fg="#38BDF8",
-            bg="#0F172A",
-            bd=1,
-            relief="solid",
-            padx=5,
-            pady=5
-        )
-        self.steps_frame.pack(fill="x", pady=4)
-        self.steps_inner_frame = tk.Frame(self.steps_frame, bg="#0F172A")
-        self.steps_inner_frame.pack(fill="x")
+        # 2. Plan & Progress Section
+        self.steps_card, self.steps_inner_frame = self._create_card(self.details_frame, "[ PROCESS RUNTIME ]", "#38BDF8")
+        self.steps_card.pack(fill="x", pady=4, padx=2)
 
-        # 4. Citations Section
-        self.citations_frame = tk.LabelFrame(
-            self.details_frame,
-            text="SOURCES",
-            font=("Segoe UI", 8, "bold"),
-            fg="#A855F7",
-            bg="#0F172A",
-            bd=1,
-            relief="solid",
-            padx=5,
-            pady=5
-        )
-        self.citations_frame.pack(fill="x", pady=4)
-        self.citations_inner_frame = tk.Frame(self.citations_frame, bg="#0F172A")
-        self.citations_inner_frame.pack(fill="x")
+        # 3. Citations Section
+        self.citations_card, self.citations_inner_frame = self._create_card(self.details_frame, "[ RESEARCH SOURCES ]", "#A855F7")
+        self.citations_card.pack(fill="x", pady=4, padx=2)
 
-        # 5. Confirmation Panel (Yes / No + typed follow-up)
-        self.confirmation_frame = tk.Frame(self.details_frame, bg="#1E293B", bd=1, relief="solid", padx=5, pady=5)
+        # 4. Confirmation Panel (Yes / No + typed follow-up)
+        self.confirmation_card, self.confirmation_inner = self._create_card(self.details_frame, "[ USER CONFIRMATION ]", "#F97316")
+        
         self.confirmation_lbl = tk.Label(
-            self.confirmation_frame,
+            self.confirmation_inner,
             text="Are you sure?",
             font=("Segoe UI", 9),
             fg="#F1F5F9",
-            bg="#1E293B",
+            bg="#131E35",
             wraplength=320,
             justify="center"
         )
         self.confirmation_lbl.pack(fill="x", pady=4)
         
-        self.buttons_frame = tk.Frame(self.confirmation_frame, bg="#1E293B")
+        self.buttons_frame = tk.Frame(self.confirmation_inner, bg="#131E35")
         self.buttons_frame.pack(pady=4)
         
         self.yes_btn = tk.Button(
             self.buttons_frame,
-            text="Yes",
+            text="Confirm [Yes]",
             font=("Segoe UI", 9, "bold"),
             fg="#F1F5F9",
             bg="#22C55E",
             activebackground="#16A34A",
             activeforeground="#F1F5F9",
             bd=0,
-            width=8,
-            pady=2,
+            width=14,
+            pady=4,
             command=self._confirm_yes
         )
-        self.yes_btn.pack(side="left", padx=5)
+        self.yes_btn.pack(side="left", padx=10)
         
         self.no_btn = tk.Button(
             self.buttons_frame,
-            text="No",
+            text="Cancel [No]",
             font=("Segoe UI", 9, "bold"),
             fg="#F1F5F9",
             bg="#EF4444",
             activebackground="#DC2626",
             activeforeground="#F1F5F9",
             bd=0,
-            width=8,
-            pady=2,
+            width=14,
+            pady=4,
             command=self._confirm_no
         )
-        self.no_btn.pack(side="left", padx=5)
+        self.no_btn.pack(side="left", padx=10)
 
-        # 6. Text Follow-up Entry
-        self.entry_frame = tk.Frame(self.details_frame, bg="#0F172A")
-        self.entry_frame.pack(fill="x", side="bottom", pady=5)
+        # 5. Recent History Section
+        self.history_card, self.history_inner_frame = self._create_card(self.details_frame, "[ SYSTEM LOGS ]", "#10B981")
+        self.history_card.pack(fill="x", pady=4, padx=2)
+
+        # 6. Text Follow-up Entry Console
+        self.entry_card, self.entry_inner = self._create_card(self.details_frame, "[ INTERACTION CONSOLE ]", "#38BDF8")
+        self.entry_card.pack(fill="x", side="bottom", pady=4, padx=2)
         
         self.input_entry = tk.Entry(
-            self.entry_frame,
-            font=("Segoe UI", 10),
+            self.entry_inner,
+            font=("Consolas", 9),
             fg="#F1F5F9",
-            bg="#1E293B",
+            bg="#0B0F19",
             insertbackground="#F1F5F9",
-            bd=1,
-            relief="solid",
-            highlightthickness=0
+            bd=0,
+            highlightthickness=1,
+            highlightbackground="#1E2E4A",
+            highlightcolor="#38BDF8"
         )
-        self.input_entry.pack(fill="x", ipady=4)
+        self.input_entry.pack(fill="x", ipady=4, padx=2, pady=2)
         self.input_entry.bind("<Return>", self._submit_typed_text)
         
         # Add a subtle placeholder
         self.input_entry.insert(0, "Type follow-up & press Enter...")
         self.input_entry.bind("<FocusIn>", self._clear_placeholder)
         self.input_entry.bind("<FocusOut>", self._add_placeholder)
-
-        # 7. Recent History Section
-        self.history_frame = tk.LabelFrame(
-            self.details_frame,
-            text="RECENT HISTORY",
-            font=("Segoe UI", 8, "bold"),
-            fg="#10B981",
-            bg="#0F172A",
-            bd=1,
-            relief="solid",
-            padx=5,
-            pady=5
-        )
-        self.history_frame.pack(fill="x", pady=4, before=self.entry_frame)
-        self.history_inner_frame = tk.Frame(self.history_frame, bg="#0F172A")
-        self.history_inner_frame.pack(fill="x")
 
         # First paint
         self._refresh_hud()
@@ -453,21 +444,29 @@ class FloatingHud:
 
         steps = self._get_steps_for_state()
         for label_text, status in steps:
-            color = "#94A3B8"  # pending
-            icon = "○"
+            icon = " "
+            status_text = "PENDING"
+            color = "#64748B"  # pending gray
+            
             if status == "active":
-                color = "#38BDF8"  # active sky
+                color = "#38BDF8"  # active sky blue
+                status_text = "RUNNING"
                 icon = "▶"
             elif status == "done":
-                color = "#22C55E"  # done green
+                color = "#E2E8F0"  # done text
+                status_text = "DONE"
                 icon = "✓"
+
+            left_part = f"{icon} {label_text} "
+            dot_count = max(1, 30 - len(left_part))
+            full_line = f"{left_part}{'.' * dot_count} [{status_text}]"
 
             lbl = tk.Label(
                 self.steps_inner_frame,
-                text=f"{icon} {label_text}",
-                font=("Segoe UI", 9, "bold" if status == "active" else "normal"),
+                text=full_line,
+                font=("Consolas", 8, "bold" if status == "active" else "normal"),
                 fg=color,
-                bg="#0F172A",
+                bg="#131E35",
                 anchor="w",
                 justify="left"
             )
@@ -532,12 +531,12 @@ class FloatingHud:
             lbl = tk.Label(
                 self.citations_inner_frame,
                 text="No research sources cited for this query.",
-                font=("Segoe UI", 9, "italic"),
-                fg="#94A3B8",
-                bg="#0F172A",
+                font=("Consolas", 8, "italic"),
+                fg="#64748B",
+                bg="#131E35",
                 anchor="w"
             )
-            lbl.pack(fill="x")
+            lbl.pack(fill="x", pady=4)
             return
 
         for idx, src in enumerate(self.sources[:3]):
@@ -547,30 +546,30 @@ class FloatingHud:
             lbl = tk.Label(
                 self.citations_inner_frame,
                 text=f"[{idx+1}] {title}",
-                font=("Segoe UI", 9),
-                fg="#38BDF8",  # Cyber Link blue
-                bg="#0F172A",
+                font=("Consolas", 8),
+                fg="#D8B4FE",  # Lavender/Purple links
+                bg="#131E35",
                 cursor="hand2",
                 anchor="w",
                 justify="left",
-                wraplength=320
+                wraplength=310
             )
             lbl.pack(fill="x", pady=2)
             self._bind_clickable_link(lbl, url)
 
     def _bind_clickable_link(self, label: tk.Label, url: str) -> None:
         label.bind("<Button-1>", lambda e: webbrowser.open(url))
-        label.bind("<Enter>", lambda e: label.config(font=("Segoe UI", 9, "underline"), fg="#F0ABFC"))  # Glow pink highlight
-        label.bind("<Leave>", lambda e: label.config(font=("Segoe UI", 9), fg="#38BDF8"))
+        label.bind("<Enter>", lambda e: label.config(font=("Consolas", 8, "underline"), fg="#F472B6"))  # Pink glow highlight
+        label.bind("<Leave>", lambda e: label.config(font=("Consolas", 8), fg="#D8B4FE"))
 
     def _refresh_confirmation_ui(self) -> None:
         state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
         if state_val in ["awaiting_confirmation", "clarifying"]:
-            self.confirmation_frame.pack(fill="x", pady=4, padx=2)
+            self.confirmation_card.pack(fill="x", pady=4, padx=2)
             prompt = self.reason or "Jarvis requires confirmation for this action."
             self.confirmation_lbl.config(text=prompt)
         else:
-            self.confirmation_frame.pack_forget()
+            self.confirmation_card.pack_forget()
 
     def _refresh_history_ui(self) -> None:
         if not self.root:
@@ -584,25 +583,25 @@ class FloatingHud:
             lbl = tk.Label(
                 self.history_inner_frame,
                 text="No recent assistant logs found.",
-                font=("Segoe UI", 9, "italic"),
-                fg="#94A3B8",
-                bg="#0F172A",
+                font=("Consolas", 8, "italic"),
+                fg="#64748B",
+                bg="#131E35",
                 anchor="w"
             )
-            lbl.pack(fill="x")
+            lbl.pack(fill="x", pady=4)
             return
 
         for record in reversed(self.history_events[-4:]):
             summary = record.get("summary") or record.get("kind", "Interaction event")
             lbl = tk.Label(
                 self.history_inner_frame,
-                text=f"• {summary}",
-                font=("Segoe UI", 9),
-                fg="#94A3B8",
-                bg="#0F172A",
+                text=f"» {summary}",
+                font=("Consolas", 8),
+                fg="#34D399",  # Mint green
+                bg="#131E35",
                 anchor="w",
                 justify="left",
-                wraplength=325
+                wraplength=310
             )
             lbl.pack(fill="x", pady=1)
 
@@ -627,153 +626,138 @@ class FloatingHud:
     def _clear_placeholder(self, event: tk.Event) -> None:
         if self.input_entry.get() == "Type follow-up & press Enter...":
             self.input_entry.delete(0, tk.END)
-
     def _add_placeholder(self, event: tk.Event) -> None:
         if not self.input_entry.get():
             self.input_entry.insert(0, "Type follow-up & press Enter...")
 
     # --- Glowing Orb Animation ---
 
-    # --- Glowing Orb Animation ---
+    def _hex_to_rgba(self, hex_str: str, alpha: int = 255) -> tuple[int, int, int, int]:
+        hex_str = hex_str.lstrip("#")
+        r = int(hex_str[0:2], 16)
+        g = int(hex_str[2:4], 16)
+        b = int(hex_str[4:6], 16)
+        return (r, g, b, alpha)
 
     def _initialize_orb_graphics(self) -> None:
-        cx, cy = 30, 30
-        self.orb_items = {}
-
-        # 1. Gradient outer rings (3 rings)
-        self.orb_items["glow_rings"] = []
-        for i in range(3):
-            item = self.canvas.create_oval(0, 0, 0, 0, outline="", fill="", tags="orb_gfx")
-            self.orb_items["glow_rings"].append(item)
-
-        # 2. Dotted crosshair boundary
-        self.orb_items["crosshair"] = self.canvas.create_oval(
-            0, 0, 0, 0, outline="", width=1, dash=(2, 4), tags="orb_gfx"
-        )
-
-        # 3. Spinning Arcs Ring 1 (Clockwise)
-        self.orb_items["arcs_r1"] = [
-            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1.5, tags="orb_gfx"),
-            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1.5, tags="orb_gfx")
-        ]
-
-        # 4. Spinning Arcs Ring 2 (Counter-Clockwise)
-        self.orb_items["arcs_r2"] = [
-            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1, tags="orb_gfx"),
-            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1, tags="orb_gfx")
-        ]
-
-        # 5. Corner Sci-Fi Target Brackets (Static/Pulse)
-        b_len = 6
-        self.orb_items["brackets"] = [
-            # Top-Left
-            self.canvas.create_line(5, 5 + b_len, 5, 5, 5 + b_len, 5, width=1, tags="orb_gfx"),
-            # Top-Right
-            self.canvas.create_line(55 - b_len, 5, 55, 5, 55, 5 + b_len, width=1, tags="orb_gfx"),
-            # Bottom-Left
-            self.canvas.create_line(5, 55 - b_len, 5, 55, 5 + b_len, 55, width=1, tags="orb_gfx"),
-            # Bottom-Right
-            self.canvas.create_line(55 - b_len, 55, 55, 55, 55, 55 - b_len, width=1, tags="orb_gfx")
-        ]
-
-        # 6. Core Center Orb
-        self.orb_items["core"] = self.canvas.create_oval(0, 0, 0, 0, outline="", fill="", tags="orb_gfx")
-
-        # 7. Wake Pulse
-        self.orb_items["wake"] = self.canvas.create_oval(0, 0, 0, 0, outline="", width=2, tags="orb_gfx")
+        self.canvas.delete("all")
+        self.orb_image_item = self.canvas.create_image(30, 30, anchor="center", tags="orb_img")
+        self.orb_photo = None
 
     def animate_orb(self) -> None:
         if not self.root:
             return
 
-        # Frame rate timing: run every 16ms (~60 FPS) for smooth animation
-        # Increments are scaled down accordingly to preserve speed (e.g. 0.03 instead of 0.08)
         self.pulse_phase += 0.03
         state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
         primary_hex, glow_hex = STATE_COLORS.get(state_val, ("#38BDF8", "#0284C7"))
 
-        # Fast pulse states
-        if state_val in ["capturing_command", "transcribing", "understanding", "planning", "researching", "fetching_sources", "ranking_sources", "summarizing_sources", "archiving_sources", "executing", "speaking"]:
+        if state_val in [
+            "capturing_command", "transcribing", "understanding", "planning",
+            "researching", "fetching_sources", "ranking_sources", "summarizing_sources",
+            "archiving_sources", "executing", "speaking"
+        ]:
             scale = 1.0 + 0.15 * math.sin(self.pulse_phase * 2.5)
             spin_multiplier = 2.5
         else:
             scale = 1.0 + 0.06 * math.sin(self.pulse_phase)
             spin_multiplier = 1.0
 
-        cx, cy = 30, 30
-        r_base = 9
+        cx, cy = 90, 90
+        r_base = 27
 
-        # Ensure graphics items exist (fallback in case of reload/first run)
-        if not hasattr(self, "orb_items") or not self.orb_items:
-            self._initialize_orb_graphics()
+        # Create transparent base image (scaled to 180x180 for 3x supersampling)
+        img = Image.new("RGBA", (180, 180), (0, 0, 0, 0))
+
+        primary_rgba = self._hex_to_rgba(primary_hex, 255)
+        glow_rgba = self._hex_to_rgba(glow_hex, 255)
+
+        # Compositing drawing helpers
+        def draw_translucent_ellipse(image, center, radius, fill_color):
+            if fill_color[3] == 0:
+                return image
+            overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
+            cx, cy = center
+            draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=fill_color)
+            return Image.alpha_composite(image, overlay)
+
+        def draw_translucent_arc(image, center, radius, start_angle, end_angle, outline_color, width):
+            if outline_color[3] == 0:
+                return image
+            overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
+            cx, cy = center
+            draw.arc([cx - radius, cy - radius, cx + radius, cy + radius], start_angle, end_angle, fill=outline_color, width=width)
+            return Image.alpha_composite(image, overlay)
+
+        def draw_translucent_line(image, coords, fill_color, width):
+            if fill_color[3] == 0:
+                return image
+            overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
+            draw.line(coords, fill=fill_color, width=width)
+            return Image.alpha_composite(image, overlay)
 
         # 1. Update glow rings (morphing outer rings)
-        for i, item in enumerate(self.orb_items["glow_rings"]):
-            r = (r_base + (3 - i) * 3.5) * scale
-            alpha = (i + 1) / 4.0
-            color = self._blend_colors(glow_hex, "#1E293B", alpha)
-            self.canvas.coords(item, cx - r, cy - r, cx + r, cy + r)
-            self.canvas.itemconfigure(item, fill=color, outline="")
+        for i in range(3):
+            r = (r_base + (3 - i) * 10.5) * scale
+            alpha = int((i + 1) * 35)
+            glow_color = (glow_rgba[0], glow_rgba[1], glow_rgba[2], alpha)
+            img = draw_translucent_ellipse(img, (cx, cy), r, glow_color)
 
-        # 2. Update spinning arcs ring 1 (clockwise)
-        r_ring1 = 22.5 * scale
+        # 2. Dotted crosshair ring
+        r_cross = 73.5 * scale
+        crosshair_rgba = (glow_rgba[0], glow_rgba[1], glow_rgba[2], 120)
+        for angle in range(0, 360, 20):
+            img = draw_translucent_arc(img, (cx, cy), r_cross, angle, angle + 8, crosshair_rgba, width=3)
+
+        # 3. Spinning Arcs Ring 1 (Clockwise)
+        r_ring1 = 67.5 * scale
         angle_offset1 = (self.pulse_phase * 35.0 * spin_multiplier) % 360
-        for idx, arc in enumerate(self.orb_items["arcs_r1"]):
+        ring1_rgba = (primary_rgba[0], primary_rgba[1], primary_rgba[2], 200)
+        for idx in range(2):
             start_angle = angle_offset1 + (idx * 180)
-            self.canvas.coords(arc, cx - r_ring1, cy - r_ring1, cx + r_ring1, cy + r_ring1)
-            self.canvas.itemconfigure(arc, start=start_angle, extent=80, outline=primary_hex)
+            img = draw_translucent_arc(img, (cx, cy), r_ring1, start_angle, start_angle + 80, ring1_rgba, width=5)
 
-        # 3. Update spinning arcs ring 2 (counter-clockwise)
-        r_ring2 = 17.5 * scale
+        # 4. Spinning Arcs Ring 2 (Counter-Clockwise)
+        r_ring2 = 52.5 * scale
         angle_offset2 = (360 - (self.pulse_phase * 55.0 * spin_multiplier)) % 360
-        for idx, arc in enumerate(self.orb_items["arcs_r2"]):
+        ring2_rgba = (glow_rgba[0], glow_rgba[1], glow_rgba[2], 180)
+        for idx in range(2):
             start_angle = angle_offset2 + (idx * 180)
-            self.canvas.coords(arc, cx - r_ring2, cy - r_ring2, cx + r_ring2, cy + r_ring2)
-            self.canvas.itemconfigure(arc, start=start_angle, extent=100, outline=glow_hex)
+            img = draw_translucent_arc(img, (cx, cy), r_ring2, start_angle, start_angle + 100, ring2_rgba, width=3)
 
-        # 4. Update dotted crosshair
-        r_cross = 24.5 * scale
-        self.canvas.coords(self.orb_items["crosshair"], cx - r_cross, cy - r_cross, cx + r_cross, cy + r_cross)
-        self.canvas.itemconfigure(self.orb_items["crosshair"], outline=glow_hex)
+        # 5. Corner Target Brackets
+        bracket_rgba = (primary_rgba[0], primary_rgba[1], primary_rgba[2], 220) if state_val != "idle" else (71, 85, 105, 180)
+        b_len = 18
+        img = draw_translucent_line(img, [(15, 15 + b_len), (15, 15), (15 + b_len, 15)], bracket_rgba, width=3)
+        img = draw_translucent_line(img, [(165 - b_len, 15), (165, 15), (165, 15 + b_len)], bracket_rgba, width=3)
+        img = draw_translucent_line(img, [(15, 165 - b_len), (15, 165), (15 + b_len, 165)], bracket_rgba, width=3)
+        img = draw_translucent_line(img, [(165 - b_len, 165), (165, 165), (165, 165 - b_len)], bracket_rgba, width=3)
 
-        # 5. Update Corner Brackets (subtle breathing animation)
-        bracket_color = primary_hex if state_val != "idle" else "#475569"
-        for item in self.orb_items["brackets"]:
-            self.canvas.itemconfigure(item, fill=bracket_color)
+        # 6. Solid Core Center Orb
+        core_rgba = (primary_rgba[0], primary_rgba[1], primary_rgba[2], 255)
+        img = draw_translucent_ellipse(img, (cx, cy), r_base * scale, core_rgba)
 
-        # 6. Update solid core
-        self.canvas.coords(self.orb_items["core"], cx - r_base, cy - r_base, cx + r_base, cy + r_base)
-        self.canvas.itemconfigure(self.orb_items["core"], fill=primary_hex, outline="")
-
-        # 7. Update wake pulse
+        # 7. Wake Pulse
         if self.wake_pulse_active:
-            self.wake_pulse_radius += 2.0
-            if self.wake_pulse_radius > 60:
+            self.wake_pulse_radius += 6.0
+            if self.wake_pulse_radius > 180:
                 self.wake_pulse_active = False
-                self.canvas.coords(self.orb_items["wake"], 0, 0, 0, 0)
-                self.canvas.itemconfigure(self.orb_items["wake"], outline="")
             else:
-                fade = (60.0 - self.wake_pulse_radius) / 45.0
+                fade = (180.0 - self.wake_pulse_radius) / 135.0
                 fade = max(0.0, min(1.0, fade))
-                pulse_color = self._blend_colors("#38BDF8", "#1E293B", 1.0 - fade)
-                self.canvas.coords(
-                    self.orb_items["wake"],
-                    cx - self.wake_pulse_radius, cy - self.wake_pulse_radius,
-                    cx + self.wake_pulse_radius, cy + self.wake_pulse_radius
-                )
-                self.canvas.itemconfigure(self.orb_items["wake"], outline=pulse_color)
-        else:
-            self.canvas.coords(self.orb_items["wake"], 0, 0, 0, 0)
-            self.canvas.itemconfigure(self.orb_items["wake"], outline="")
+                pulse_rgba = (56, 189, 248, int(fade * 255))
+                img = draw_translucent_arc(img, (cx, cy), self.wake_pulse_radius, 0, 360, pulse_rgba, width=6)
 
-        # Re-schedule at 16ms (~60 FPS) for buttery smooth motion
+        # Downscale via LANCZOS for high quality anti-aliasing
+        resized_img = img.resize((60, 60), Image.Resampling.LANCZOS)
+        self.orb_photo = ImageTk.PhotoImage(resized_img)
+        self.canvas.itemconfig(self.orb_image_item, image=self.orb_photo)
+
+        # Re-schedule at 16ms
         self.root.after(16, self.animate_orb)
-
-    def _blend_colors(self, color1: str, color2: str, alpha: float) -> str:
-        c1 = [int(color1[i:i+2], 16) for i in (1, 3, 5)]
-        c2 = [int(color2[i:i+2], 16) for i in (1, 3, 5)]
-        blended = [int(c1[j] * (1.0 - alpha) + c2[j] * alpha) for j in range(3)]
-        return f"#{blended[0]:02X}{blended[1]:02X}{blended[2]:02X}"
 
     # --- Window Drag-and-Drop Handlers ---
 

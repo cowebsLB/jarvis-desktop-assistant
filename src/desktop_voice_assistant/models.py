@@ -83,3 +83,4 @@ class TranscriptResult:
     text: str
     audio_seconds: float | None = None
     ended_early: bool = False
+    confidence: float = 1.0

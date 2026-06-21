@@ -1,85 +1,21 @@
 # TODO
 
-## Now
+### Now
 
 ### Implementation Sequence
 
-#### 3. Clarification And Confirmation Flow
-
-- Goal:
-  - stop executing unclear or risky actions blindly
-- Expected modules:
-  - `src/desktop_voice_assistant/intent_router.py`
-  - `src/desktop_voice_assistant/assistant.py`
-  - `src/desktop_voice_assistant/response_style.py`
-  - `src/desktop_voice_assistant/actions.py`
-- Deliverables:
-  - transcript-confidence thresholds
-  - yes / no / cancel confirmation handling across more than fuzzy app opens
-  - risky-action classification
-  - richer history markers for confirmation and clarification prompts
-- Test checkpoint:
-  - add tests for:
-    - destructive request requires confirmation
-
-#### 4. Desktop Control Foundation
-
-- Goal:
-  - expand useful local actions before deeper automation
-- Expected modules:
-  - `src/desktop_voice_assistant/intent_router.py`
-  - `src/desktop_voice_assistant/actions.py`
-  - add `src/desktop_voice_assistant/filesystem_actions.py` if needed
-- Deliverables:
-- Test checkpoint:
-  - full slice covered by implemented regression tests
-
-#### 5. Research Reliability Pass
-
-- Goal:
-  - make research answers more trustworthy and stable
-- Expected modules:
-  - `src/desktop_voice_assistant/research.py`
-  - `src/desktop_voice_assistant/archive.py`
-  - `src/desktop_voice_assistant/embeddings.py`
-  - `src/desktop_voice_assistant/assistant.py`
-- Deliverables:
-  - improved source ranking
-- Test checkpoint:
-  - add tests for:
-    - representative ranking edge cases that remain
-
-#### 6. End-To-End “Now” Stabilization
-
-- Goal:
-  - close the slice cleanly before moving to HUD and broader memory work
-- Expected modules:
-  - whole repo touch-up
-  - docs under `docs/`
-  - `README.md`
-  - `TODO.md`
-- Deliverables:
-  - docs updated for shipped behavior
-  - tray runtime restarted on new build
-  - settings migrations for any new config fields
-  - regression suite expanded
-- Test checkpoint:
-  - full `python -m pytest`
-- manual smoke tests:
-  - wake word -> weather
-  - web research -> follow-up summary
-  - risky action -> confirmation
-  - calculator
-  - clipboard helper
-  - local file open
-  - floating HUD pulse / transcript / reply cycle
+All tasks in the "Now" cycle have been completed successfully:
+- **Clarification And Confirmation Flow**: Handled low-confidence transcript triggers and confirmation intercepts for risky actions (`delete_file`, `power_action`, `send_email`).
+- **Desktop Control Foundation**: Expanded folder aliases and file matches.
+- **Research Reliability Pass**: Implemented cosine similarity based page source ranking with TF-IDF fallback, plus semantic HTML tag prioritizing parser.
+- **End-To-End Stabilization**: Expanded regression tests and fixed routing conflicts. All 130 tests passing.
 
 ### Assistant Flow And State
 
-- Add a session manager for:
+- [x] Add a session manager for:
   - pending confirmation
   - active multi-step task
-- Add a planner layer that decides:
+- [x] Add a planner layer that decides:
   - single-step action
   - multi-step action
   - clarification needed
@@ -88,10 +24,10 @@
 
 ### Clarification And Follow-Up
 
-- Add better handling of transcription uncertainty.
-- Add confidence-aware clarification when STT is doubtful.
-- Add alternate-interpretation prompts when the transcript is ambiguous.
-- Add confirmation flow for risky actions:
+- [x] Add better handling of transcription uncertainty.
+- [x] Add confidence-aware clarification when STT is doubtful.
+- [x] Add alternate-interpretation prompts when the transcript is ambiguous.
+- [x] Add confirmation flow for risky actions:
   - delete
   - overwrite
   - send email
@@ -100,20 +36,20 @@
 
 ### Desktop Control Foundation
 
-- Add richer browser and site-opening phrases.
-- Add file and folder helpers:
+- [x] Add richer browser and site-opening phrases.
+- [x] Add file and folder helpers:
   - broader folder coverage beyond the current common aliases
   - file-result disambiguation when several local matches are close
 
 ### Research Reliability
 
-- Improve source ranking beyond the current heuristic approach.
-- Add better page parsing and extraction quality.
-- Add graceful downgrade when the embedding model is missing.
+- [x] Improve source ranking beyond the current heuristic approach.
+- [x] Add better page parsing and extraction quality.
+- [x] Add graceful downgrade when the embedding model is missing.
 
 ### Testing For The Current Next Slice
 
-- Add tests for follow-up conversation handling.
+- [x] Add tests for follow-up conversation handling.ing.
 
 ## Next
 

@@ -85,6 +85,7 @@ class TrayApplication:
             self.assistant.tts.play_listen_cue()
             self.assistant.set_runtime_state(RuntimeState.CAPTURING_COMMAND, reason="request capture started")
         self._refresh_title()
+        result = None
         try:
             result = self.assistant.handle_text_input(text_input) if text_input is not None else self.assistant.listen_and_handle()
             LOGGER.info("Assistant result: success=%s message=%s", result.success, result.message)
@@ -98,22 +99,47 @@ class TrayApplication:
             with self._request_lock:
                 self._request_active = False
             
-            # Preserve waiting states so they display in HUD and wait for follow-up turns
-            current_state = self.assistant.runtime_state
-            should_transition = current_state not in {
-                RuntimeState.AWAITING_CONFIRMATION,
-                RuntimeState.CLARIFYING,
-                RuntimeState.AWAITING_FOLLOWUP
-            }
+            # Determine if we should auto-trigger voice follow-up
+            is_followup = (
+                text_input is None
+                and result is not None
+                and result.success
+                and self.assistant.runtime_state in {
+                    RuntimeState.AWAITING_CONFIRMATION,
+                    RuntimeState.CLARIFYING,
+                    RuntimeState.AWAITING_FOLLOWUP
+                }
+            )
             
-            if self.settings.wake_word_enabled:
-                self.wake_word_listener.start()
-                if should_transition:
-                    self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="wake word listener resumed")
+            if is_followup:
+                # Do not transition or start wake word listener; trigger next listen directly
+                self._refresh_title()
+                self.trigger_listen()
             else:
-                if should_transition:
-                    self.assistant.set_runtime_state(RuntimeState.IDLE, reason="request cycle completed")
-            self._refresh_title()
+                # If the follow-up had no speech or failed, reset state to idle/wake listening
+                if result is None or not result.success:
+                    current_state = self.assistant.runtime_state
+                    if current_state in {RuntimeState.AWAITING_CONFIRMATION, RuntimeState.CLARIFYING, RuntimeState.AWAITING_FOLLOWUP}:
+                        if self.settings.wake_word_enabled:
+                            self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="follow-up cycle reset")
+                        else:
+                            self.assistant.set_runtime_state(RuntimeState.IDLE, reason="follow-up cycle reset")
+                
+                current_state = self.assistant.runtime_state
+                should_transition = current_state not in {
+                    RuntimeState.AWAITING_CONFIRMATION,
+                    RuntimeState.CLARIFYING,
+                    RuntimeState.AWAITING_FOLLOWUP
+                }
+                
+                if self.settings.wake_word_enabled:
+                    self.wake_word_listener.start()
+                    if should_transition:
+                        self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="wake word listener resumed")
+                else:
+                    if should_transition:
+                        self.assistant.set_runtime_state(RuntimeState.IDLE, reason="request cycle completed")
+                self._refresh_title()
 
     def _listen_now(self, icon, item) -> None:
         self.trigger_listen()

@@ -126,6 +126,10 @@ Current normalization handles:
 - live answers now add caution when:
   - evidence is limited
   - live sources appear to conflict
+- semantic source ranking:
+  - prioritizes sources by running cosine similarity on local embedding vectors, falling back to query-term frequency count matching when embeddings are disabled or missing
+- semantic text extraction:
+  - fetches page texts prioritizing `<article>`, `<main>`, `<p>`, `<h1-3>`, and `<li>` content tags to drop boilerplate headers, sidebars, cookie notices, and navigation elements
 
 ### Local Research Archive
 
@@ -193,8 +197,12 @@ Current normalization handles:
   - `open it`
   - `open that`
   - `summarize that`
+- low-confidence STT clarification loop:
+  - transcription results below a 0.5 confidence threshold are intercepted
+  - Jarvis prompts the user to repeat their request
+  - correction turns are automatically routed directly through the intent router to execute the corrected intent
 - fuzzy app-name recovery now asks for confirmation before launch
-- destructive actions (such as clearing tasks, timers, reminders, and alarms) now prompt for explicit user confirmation before executing
+- destructive and risky actions (including clearing tasks/timers/reminders/alarms, deleting files, executing system power actions, and drafting emails) now prompt for explicit user confirmation before executing
 - confirmation policy now supports:
   - `smart`
   - `always`
@@ -236,6 +244,11 @@ Current normalization handles:
 - archive enablement and auto-open-top-source behavior for web research
 - HUD enablement and follow-up timeout
 - confirmation policy
+- visual and UX improvements:
+  - futuristic dark cards framework with subtle outer borders
+  - responsive focus highlights on text inputs (glowing cyan borders)
+  - dark theme combobox dropdown lists styled to match the dark background
+  - micro-animations and hover transitions on Save and Cancel buttons
 
 ### Floating HUD
 

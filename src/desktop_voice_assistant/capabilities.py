@@ -69,6 +69,9 @@ class CapabilityRegistry:
             ("ui_double_click_coordinate", "Double click at a screen coordinate.", [("x", "X coordinate."), ("y", "Y coordinate.")], ["double click at 100 200"]),
             ("ui_write_at_coordinate", "Focus and type text at a screen coordinate.", [("x", "X coordinate."), ("y", "Y coordinate."), ("text", "Text to write.")], ["write hello at 100 200"]),
             ("ui_click_control", "Click a named accessibility control in a target window.", [("control_name", "Control name."), ("window_title", "Target window title.")], ["click Save in notepad"]),
+            ("power_action", "Execute a system power command.", [("action", "shutdown, restart, or sleep.")], ["shutdown the system"]),
+            ("delete_file", "Delete a local file.", [("target", "Filename to delete.")], ["delete notes.txt"]),
+            ("send_email", "Draft and send an email message.", [("to", "Recipient email."), ("subject", "Email subject.", False), ("body", "Email body text.", False)], ["send email to john@example.com"]),
         ]
 
         for intent, description, slot_definitions, examples in definitions:

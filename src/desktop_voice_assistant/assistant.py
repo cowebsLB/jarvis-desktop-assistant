@@ -143,6 +143,26 @@ class DesktopAssistant:
             self._speak_and_transition(result)
             return result
 
+        if transcript.confidence < 0.5:
+            prompt = "I didn't quite catch that. Could you please repeat your request?"
+            result = ActionResult(
+                False,
+                f"Low confidence transcript ({transcript.confidence:.2f}): {transcript.text}",
+                prompt,
+            )
+            self.history.append(
+                HistoryEvent(
+                    kind="low_confidence_clarification_prompted",
+                    data={"transcript": transcript.text, "confidence": transcript.confidence},
+                    summary="Transcript confidence was low. Clarification requested.",
+                    correlation_id=correlation_id,
+                    conversation_id=conversation_id,
+                )
+            )
+            self.session.set_clarification("low_confidence", "query", prompt)
+            self._speak_and_transition(result)
+            return result
+
         request = AssistantRequest(
             source="microphone",
             transcript=transcript.text,
@@ -207,10 +227,22 @@ class DesktopAssistant:
 
         if intent.intent == "confirmation_cancelled":
             result = ActionResult(True, "Pending action cancelled.", "Very well. Cancelled.")
-        elif intent.intent in {"clear_tasks", "clear_timers", "clear_reminders", "clear_alarms"} and intent.slots.get("_confirmed") != "true":
+        elif intent.intent in {
+            "clear_tasks", "clear_timers", "clear_reminders", "clear_alarms",
+            "power_action", "delete_file", "send_email"
+        } and intent.slots.get("_confirmed") != "true":
             action_name = intent.intent.replace("_", " ")
             prompt = f"Are you sure you want to {action_name}?"
             self.session.set_confirmation(intent, prompt)
+            self.history.append(
+                HistoryEvent(
+                    kind="confirmation_prompted",
+                    data={"intent": intent.intent, "prompt": prompt},
+                    summary=f"Prompted user for confirmation to {action_name}.",
+                    correlation_id=correlation_id,
+                    conversation_id=conversation_id,
+                )
+            )
             result = ActionResult(False, f"Pending confirmation to {action_name}.", prompt)
         elif intent.intent == "weather":
             self.set_runtime_state(RuntimeState.EXECUTING, reason="fetching weather")
@@ -441,6 +473,9 @@ class DesktopAssistant:
         if pending is None:
             return None
         self.set_runtime_state(RuntimeState.UNDERSTANDING, reason="clarification received")
+        if pending.intent_name == "low_confidence":
+            self.session.snapshot.pending_clarification = None
+            return self.router.route(raw_text)
         return self.session.consume_clarification(raw_text)
 
     def _handle_open_target(self, intent: IntentResult) -> ActionResult:

@@ -149,3 +149,47 @@ def test_research_respects_archive_disabled_setting(tmp_path) -> None:
 
     assert result.sources
     assert stored == []
+
+
+def test_research_ranking_with_embeddings(tmp_path) -> None:
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    embedder = FakeEmbedder({
+        "python": [1.0, 0.0],
+        "Pytest Testing framework": [0.1, 0.9],
+        "Python Docs Language guide": [0.95, 0.0],
+    })
+    researcher = WebResearcher(FakeLLM(), archive, fetch_limit=2, embedder=embedder)
+    sources = [
+        ResearchSource(title="Pytest", url="https://example.com/pytest", snippet="Testing framework"),
+        ResearchSource(title="Python Docs", url="https://example.com/python", snippet="Language guide"),
+    ]
+    ranked = researcher._rank_sources("python", sources)
+    assert ranked[0].title == "Python Docs"
+    assert ranked[1].title == "Pytest"
+
+
+def test_research_ranking_fallback_to_term_frequency(tmp_path) -> None:
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    researcher = WebResearcher(FakeLLM(), archive, fetch_limit=3, embedder=None)
+    sources = [
+        ResearchSource(title="Django Web", url="https://example.com/django", snippet="web framework"),
+        ResearchSource(title="Python Guide", url="https://example.com/python", snippet="python guide"),
+        ResearchSource(title="Pytest testing", url="https://example.com/pytest", snippet="automated testing tool python"),
+    ]
+    ranked = researcher._rank_sources("python testing", sources)
+    assert ranked[0].title == "Pytest testing"
+    assert ranked[1].title == "Python Guide"
+    assert ranked[2].title == "Django Web"
+
+
+def test_research_ranking_fallback_when_embedder_not_warmed(tmp_path) -> None:
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    embedder = FakeEmbedder({}, warmed_successfully=False)
+    researcher = WebResearcher(FakeLLM(), archive, fetch_limit=3, embedder=embedder)
+    sources = [
+        ResearchSource(title="Django Web", url="https://example.com/django", snippet="web framework"),
+        ResearchSource(title="Pytest testing", url="https://example.com/pytest", snippet="automated testing tool python"),
+    ]
+    ranked = researcher._rank_sources("python testing", sources)
+    assert ranked[0].title == "Pytest testing"
+    assert ranked[1].title == "Django Web"

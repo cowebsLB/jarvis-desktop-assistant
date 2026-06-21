@@ -42,12 +42,14 @@ class UnsupportedSTT:
 
 
 class SequenceSTT:
-    def __init__(self, texts: list[str]) -> None:
+    def __init__(self, texts: list[str | tuple[str, float]]) -> None:
         self.texts = list(texts)
 
     def transcribe_once(self):
-        text = self.texts.pop(0)
-        return TranscriptResult(text=text, audio_seconds=2.0, ended_early=False)
+        item = self.texts.pop(0)
+        if isinstance(item, tuple):
+            return TranscriptResult(text=item[0], audio_seconds=2.0, ended_early=False, confidence=item[1])
+        return TranscriptResult(text=item, audio_seconds=2.0, ended_early=False)
 
 
 class FakeLLM:
@@ -758,4 +760,129 @@ def test_confirmation_policy_always_requires_confirmation_for_open_target(monkey
     assert not result.success
     assert "confirm opening notepad" in result.spoken_reply.lower()
     assert assistant.session.snapshot.pending_confirmation is not None
+
+
+def test_low_confidence_stt_clarification_loop() -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    stt = SequenceSTT([
+        ("gibberish", 0.3),
+        ("what's the weather in Beirut", 0.95),
+    ])
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        stt,
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
+
+    first = assistant.listen_and_handle()
+    assert not first.success
+    assert "didn't quite catch that" in first.spoken_reply.lower()
+    assert assistant.session.snapshot.pending_clarification is not None
+    assert assistant.session.snapshot.pending_clarification.intent_name == "low_confidence"
+    assert assistant.runtime_state == RuntimeState.CLARIFYING
+
+    second = assistant.listen_and_handle()
+    assert second.success
+    assert "sunny" in second.message.lower()
+    assert assistant.session.snapshot.pending_clarification is None
+    assert assistant.runtime_state == RuntimeState.AWAITING_FOLLOWUP
+    assistant.productivity.stop()
+
+
+def test_power_action_requires_confirmation() -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    action = ActionExecutor(Settings())
+    assistant = DesktopAssistant(
+        Settings(conversation_followup_seconds=45),
+        IntentRouter(),
+        action,
+        SequenceSTT(["shutdown the system", "yes"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
+
+    first = assistant.listen_and_handle()
+    assert not first.success
+    assert "are you sure you want to power action" in first.spoken_reply.lower()
+    assert assistant.session.snapshot.pending_confirmation is not None
+
+    second = assistant.listen_and_handle()
+    assert second.success
+    assert "simulated system shutdown completed" in second.message.lower()
+    assert assistant.session.snapshot.pending_confirmation is None
+    assistant.productivity.stop()
+
+
+def test_delete_file_requires_confirmation(tmp_path) -> None:
+    test_file = tmp_path / "test_delete.txt"
+    test_file.write_text("hello delete")
+    assert test_file.exists()
+
+    tts = FakeTTS()
+    history = FakeHistory()
+    action = ActionExecutor(Settings())
+    assistant = DesktopAssistant(
+        Settings(conversation_followup_seconds=45),
+        IntentRouter(),
+        action,
+        SequenceSTT([f"delete file {test_file}", "yes"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
+
+    first = assistant.listen_and_handle()
+    assert not first.success
+    assert "are you sure you want to delete file" in first.spoken_reply.lower()
+    assert assistant.session.snapshot.pending_confirmation is not None
+
+    second = assistant.listen_and_handle()
+    assert second.success
+    assert "deleted file" in second.message.lower()
+    assert not test_file.exists()
+    assert assistant.session.snapshot.pending_confirmation is None
+    assistant.productivity.stop()
+
+
+def test_send_email_requires_confirmation(monkeypatch) -> None:
+    opened_urls = []
+    import webbrowser
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened_urls.append(url))
+
+    tts = FakeTTS()
+    history = FakeHistory()
+    action = ActionExecutor(Settings())
+    assistant = DesktopAssistant(
+        Settings(conversation_followup_seconds=45),
+        IntentRouter(),
+        action,
+        SequenceSTT(["send email to john@example.com", "yes"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
+
+    first = assistant.listen_and_handle()
+    assert not first.success
+    assert "are you sure you want to send email" in first.spoken_reply.lower()
+    assert assistant.session.snapshot.pending_confirmation is not None
+
+    second = assistant.listen_and_handle()
+    assert second.success
+    assert "drafted email to john@example.com" in second.message.lower()
+    assert len(opened_urls) == 1
+    assert "mailto:john@example.com" in opened_urls[0]
+    assert assistant.session.snapshot.pending_confirmation is None
+    assistant.productivity.stop()
 

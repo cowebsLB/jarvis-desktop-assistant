@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import queue
 import threading
 import time
@@ -132,11 +133,26 @@ class SpeechToText:
             vad_filter=False,
             condition_on_previous_text=False,
         )
-        text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
+        text_parts = []
+        confidence_sum = 0.0
+        segment_count = 0
+        for segment in segments:
+            text_val = segment.text.strip()
+            if text_val:
+                text_parts.append(text_val)
+                # avg_logprob is log probability of the segment tokens. Convert to 0..1 confidence.
+                prob = math.exp(segment.avg_logprob) if hasattr(segment, "avg_logprob") else 1.0
+                confidence_sum += prob
+                segment_count += 1
+        
+        text = " ".join(text_parts).strip()
+        confidence = (confidence_sum / segment_count) if segment_count > 0 else 1.0
+        
         return TranscriptResult(
             text=text,
             audio_seconds=audio_seconds,
             ended_early=ended_early,
+            confidence=confidence,
         )
 
     @staticmethod

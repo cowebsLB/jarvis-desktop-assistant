@@ -10,6 +10,21 @@ class IntentRouter:
         text = transcript.strip()
         normalized = self._normalize_text(text)
 
+        # Power action, delete file, send email (risky actions)
+        if match := re.search(r"\b(shutdown|restart|sleep)\s+(?:the\s+)?(?:system|computer|machine|pc)\b", normalized):
+            return IntentResult("power_action", 0.95, {"action": match.group(1)})
+        if match := re.search(r"\b(?:delete|remove)\s+file\s+(.+)$", normalized):
+            orig_match = re.search(r"\b(?:delete|remove)\s+file\s+(.+)$", text, re.IGNORECASE)
+            target = orig_match.group(1).strip("?.!, ") if orig_match else match.group(1).strip()
+            return IntentResult("delete_file", 0.95, {"target": target})
+        if match := re.search(r"\b(?:delete|remove)\s+([\w\-\.\\\/:\s\(\)]+\.\w{2,5})$", normalized):
+            orig_match = re.search(r"\b(?:delete|remove)\s+(.+)$", text, re.IGNORECASE)
+            target = orig_match.group(1).strip("?.!, ") if orig_match else match.group(1).strip()
+            if not any(x in target.lower() for x in ("all ", "my ", "the ", "alarm", "timer", "task", "reminder", "folder", "directory")):
+                return IntentResult("delete_file", 0.95, {"target": target})
+        if match := re.search(r"\bsend\s+email\s+to\s+([\w\-\.\+]+@[\w\-\.]+)\b", text, re.IGNORECASE):
+            return IntentResult("send_email", 0.95, {"to": match.group(1)})
+
         # Clear timers/reminders/alarms
         if re.search(r"\b(?:clear|remove|delete|cancel)\s+(?:all\s+|the\s+|my\s+)*(?:timer|timers)\b", normalized):
             return IntentResult("clear_timers", 0.95, {})

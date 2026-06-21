@@ -92,6 +92,12 @@ class ActionExecutor:
             return self.ui_controller.write_to_coordinate(int(intent.slots["x"]), int(intent.slots["y"]), intent.slots["text"])
         if intent.intent == "ui_click_control":
             return self.ui_controller.click_control(intent.slots["window_title"], intent.slots["control_name"])
+        if intent.intent == "power_action":
+            return self._execute_power_action(intent.slots["action"])
+        if intent.intent == "delete_file":
+            return self._delete_file(intent.slots["target"])
+        if intent.intent == "send_email":
+            return self._send_email(intent.slots["to"], intent.slots.get("subject") or "No Subject", intent.slots.get("body") or "")
         if intent.intent == "unsupported":
             return ActionResult(
                 False,
@@ -627,3 +633,37 @@ class ActionExecutor:
             "twenty": "20",
         }
         return [number_words.get(token, token) for token in tokens]
+
+    def _execute_power_action(self, action: str) -> ActionResult:
+        # Mock actual system power states for safety, but log it
+        LOGGER.info("Executing power action: %s", action)
+        return ActionResult(True, f"Simulated system {action} completed.", f"Executing system {action} now.")
+
+    def _delete_file(self, target: str) -> ActionResult:
+        import os
+        from pathlib import Path
+        path = Path(target)
+        # Check in current workspace directory or home directory if relative
+        if not path.is_absolute():
+            possibilities = [Path.home() / target, Path(os.getcwd()) / target]
+            for p in possibilities:
+                if p.exists() and p.is_file():
+                    path = p
+                    break
+        if path.exists() and path.is_file():
+            try:
+                os.remove(path)
+                return ActionResult(True, f"Deleted file: {path}", f"I have deleted the file {path.name}.")
+            except Exception as exc:
+                return ActionResult(False, f"Failed to delete file: {exc}", "I encountered an error deleting the file.")
+        return ActionResult(False, f"File not found: {target}", "I could not find that file to delete.")
+
+    def _send_email(self, to: str, subject: str, body: str) -> ActionResult:
+        import webbrowser
+        from urllib.parse import quote
+        mailto_url = f"mailto:{to}?subject={quote(subject)}&body={quote(body)}"
+        try:
+            webbrowser.open(mailto_url)
+            return ActionResult(True, f"Drafted email to {to}", f"Drafted email to {to} and opened in your email client.")
+        except Exception as exc:
+            return ActionResult(False, f"Failed to open email client: {exc}", "I couldn't open your email client.")

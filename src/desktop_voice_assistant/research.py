@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import logging
+import math
 import re
 from urllib.parse import quote_plus
 
@@ -47,6 +48,8 @@ class WebResearcher:
         embedding_note = self._embedding_status_note()
         self._emit_state(RuntimeState.RESEARCHING, "starting web research")
         pages = self._search_duckduckgo(query)
+        if pages:
+            pages = self._rank_sources(query, pages)
         if not pages:
             archive_result = self.recall(query)
             if archive_result:
@@ -159,6 +162,35 @@ class WebResearcher:
                 sources.append(ResearchSource(title=title, url=url, snippet=snippet))
         return sources
 
+    def _rank_sources(self, query: str, sources: list[ResearchSource]) -> list[ResearchSource]:
+        query_vector = self._embed_text(query)
+        if query_vector and self.embedder and self.embedder.warmed_successfully:
+            scored_sources = []
+            for src in sources:
+                text_to_embed = f"{src.title} {src.snippet}"
+                src_vector = self._embed_text(text_to_embed)
+                if src_vector:
+                    dot_product = sum(q * s for q, s in zip(query_vector, src_vector))
+                    q_norm = math.sqrt(sum(q * q for q in query_vector))
+                    s_norm = math.sqrt(sum(s * s for s in src_vector))
+                    similarity = dot_product / (q_norm * s_norm) if q_norm and s_norm else 0.0
+                    scored_sources.append((similarity, src))
+                else:
+                    scored_sources.append((0.0, src))
+            scored_sources.sort(key=lambda x: x[0], reverse=True)
+            return [src for score, src in scored_sources]
+        
+        query_terms = {term for term in re.findall(r"\b\w{3,}\b", query.lower())}
+        if not query_terms:
+            return sources
+        scored_sources = []
+        for src in sources:
+            text = f"{src.title} {src.snippet}".lower()
+            score = sum(text.count(term) for term in query_terms)
+            scored_sources.append((score, src))
+        scored_sources.sort(key=lambda x: x[0], reverse=True)
+        return [src for score, src in scored_sources]
+
     def _fetch_page_text(self, url: str) -> str:
         try:
             response = self.session.get(url, timeout=20)
@@ -172,9 +204,19 @@ class WebResearcher:
         text = re.sub(r"<style.*?</style>", " ", text, flags=re.IGNORECASE | re.DOTALL)
         text = re.sub(r"<noscript.*?</noscript>", " ", text, flags=re.IGNORECASE | re.DOTALL)
         text = re.sub(r"<svg.*?</svg>", " ", text, flags=re.IGNORECASE | re.DOTALL)
-        text = re.sub(r"\b(cookie|privacy|subscribe|sign up)\b.{0,80}", " ", text, flags=re.IGNORECASE)
-        text = self._clean_text(text)
-        return text[:6000]
+        body_matches = re.findall(r"<(article|main)[^>]*>(.*?)</\1>", text, flags=re.IGNORECASE | re.DOTALL)
+        if body_matches:
+            text_to_parse = " ".join(match[1] for match in body_matches)
+        else:
+            text_to_parse = text
+        content_tags = re.findall(r"<(p|h1|h2|h3|li)[^>]*>(.*?)</\1>", text_to_parse, flags=re.IGNORECASE | re.DOTALL)
+        if content_tags:
+            extracted_text = " ".join(match[1] for match in content_tags)
+        else:
+            extracted_text = text_to_parse
+        extracted_text = re.sub(r"\b(cookie|privacy|subscribe|sign up)\b.{0,80}", " ", extracted_text, flags=re.IGNORECASE)
+        cleaned = self._clean_text(extracted_text)
+        return cleaned[:6000]
 
     def _embed_text(self, text: str) -> list[float] | None:
         if not self.embedder:
