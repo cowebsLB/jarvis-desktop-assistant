@@ -64,6 +64,7 @@ class FloatingHud:
         self.pulse_phase: float = 0.0
         self.wake_pulse_active: bool = False
         self.wake_pulse_radius: float = 0.0
+        self.orb_items: dict[str, Any] = {}
 
         # Load initial history
         self.history_events = self._load_recent_history()
@@ -203,6 +204,9 @@ class FloatingHud:
         self.canvas.bind("<Button-1>", self._on_drag_start)
         self.canvas.bind("<B1-Motion>", self._on_drag_motion)
         self.canvas.bind("<ButtonRelease-1>", self._on_drag_release)
+
+        # Initialize the persistent canvas items to avoid recreate stuttering
+        self._initialize_orb_graphics()
 
         # Status Label
         self.status_lbl = tk.Label(
@@ -630,85 +634,140 @@ class FloatingHud:
 
     # --- Glowing Orb Animation ---
 
+    # --- Glowing Orb Animation ---
+
+    def _initialize_orb_graphics(self) -> None:
+        cx, cy = 30, 30
+        self.orb_items = {}
+
+        # 1. Gradient outer rings (3 rings)
+        self.orb_items["glow_rings"] = []
+        for i in range(3):
+            item = self.canvas.create_oval(0, 0, 0, 0, outline="", fill="", tags="orb_gfx")
+            self.orb_items["glow_rings"].append(item)
+
+        # 2. Dotted crosshair boundary
+        self.orb_items["crosshair"] = self.canvas.create_oval(
+            0, 0, 0, 0, outline="", width=1, dash=(2, 4), tags="orb_gfx"
+        )
+
+        # 3. Spinning Arcs Ring 1 (Clockwise)
+        self.orb_items["arcs_r1"] = [
+            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1.5, tags="orb_gfx"),
+            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1.5, tags="orb_gfx")
+        ]
+
+        # 4. Spinning Arcs Ring 2 (Counter-Clockwise)
+        self.orb_items["arcs_r2"] = [
+            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1, tags="orb_gfx"),
+            self.canvas.create_arc(0, 0, 0, 0, style="arc", width=1, tags="orb_gfx")
+        ]
+
+        # 5. Corner Sci-Fi Target Brackets (Static/Pulse)
+        b_len = 6
+        self.orb_items["brackets"] = [
+            # Top-Left
+            self.canvas.create_line(5, 5 + b_len, 5, 5, 5 + b_len, 5, width=1, tags="orb_gfx"),
+            # Top-Right
+            self.canvas.create_line(55 - b_len, 5, 55, 5, 55, 5 + b_len, width=1, tags="orb_gfx"),
+            # Bottom-Left
+            self.canvas.create_line(5, 55 - b_len, 5, 55, 5 + b_len, 55, width=1, tags="orb_gfx"),
+            # Bottom-Right
+            self.canvas.create_line(55 - b_len, 55, 55, 55, 55, 55 - b_len, width=1, tags="orb_gfx")
+        ]
+
+        # 6. Core Center Orb
+        self.orb_items["core"] = self.canvas.create_oval(0, 0, 0, 0, outline="", fill="", tags="orb_gfx")
+
+        # 7. Wake Pulse
+        self.orb_items["wake"] = self.canvas.create_oval(0, 0, 0, 0, outline="", width=2, tags="orb_gfx")
+
     def animate_orb(self) -> None:
         if not self.root:
             return
 
-        self.pulse_phase += 0.08
+        # Frame rate timing: run every 16ms (~60 FPS) for smooth animation
+        # Increments are scaled down accordingly to preserve speed (e.g. 0.03 instead of 0.08)
+        self.pulse_phase += 0.03
         state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
         primary_hex, glow_hex = STATE_COLORS.get(state_val, ("#38BDF8", "#0284C7"))
 
-        # Listening / processing / speaking states pulse and spin faster
+        # Fast pulse states
         if state_val in ["capturing_command", "transcribing", "understanding", "planning", "researching", "fetching_sources", "ranking_sources", "summarizing_sources", "archiving_sources", "executing", "speaking"]:
-            scale = 1.0 + 0.18 * math.sin(self.pulse_phase * 2.0)
-            spin_multiplier = 2.0
+            scale = 1.0 + 0.15 * math.sin(self.pulse_phase * 2.5)
+            spin_multiplier = 2.5
         else:
-            # Idle slowly breaths and spins
-            scale = 1.0 + 0.08 * math.sin(self.pulse_phase)
+            scale = 1.0 + 0.06 * math.sin(self.pulse_phase)
             spin_multiplier = 1.0
 
-        self.canvas.delete("orb")
         cx, cy = 30, 30
-        r_base = 10
+        r_base = 9
 
-        # Draw blended gradient outer rings
-        for i in range(4, 0, -1):
-            r = (r_base + i * 3.0) * scale
-            # Blend color into the top frame background (#1E293B)
-            alpha_color = self._blend_colors(glow_hex, "#1E293B", i / 5.0)
-            self.canvas.create_oval(cx - r, cy - r, cx + r, cy + r, fill=alpha_color, outline="", tags="orb")
+        # Ensure graphics items exist (fallback in case of reload/first run)
+        if not hasattr(self, "orb_items") or not self.orb_items:
+            self._initialize_orb_graphics()
 
-        # Draw spinning Sci-Fi outer scanning arcs (rotating clockwise)
-        r_ring1 = 23 * scale
-        angle_offset1 = (self.pulse_phase * 15.0 * spin_multiplier) % 360
-        self.canvas.create_arc(
-            cx - r_ring1, cy - r_ring1, cx + r_ring1, cy + r_ring1,
-            start=angle_offset1, extent=80, style="arc", outline=primary_hex, width=1.5, tags="orb"
-        )
-        self.canvas.create_arc(
-            cx - r_ring1, cy - r_ring1, cx + r_ring1, cy + r_ring1,
-            start=angle_offset1 + 180, extent=80, style="arc", outline=primary_hex, width=1.5, tags="orb"
-        )
+        # 1. Update glow rings (morphing outer rings)
+        for i, item in enumerate(self.orb_items["glow_rings"]):
+            r = (r_base + (3 - i) * 3.5) * scale
+            alpha = (i + 1) / 4.0
+            color = self._blend_colors(glow_hex, "#1E293B", alpha)
+            self.canvas.coords(item, cx - r, cy - r, cx + r, cy + r)
+            self.canvas.itemconfigure(item, fill=color, outline="")
 
-        # Draw spinning Sci-Fi inner scanning arcs (rotating counter-clockwise)
-        r_ring2 = 18 * scale
-        angle_offset2 = (360 - (self.pulse_phase * 25.0 * spin_multiplier)) % 360
-        self.canvas.create_arc(
-            cx - r_ring2, cy - r_ring2, cx + r_ring2, cy + r_ring2,
-            start=angle_offset2, extent=110, style="arc", outline=glow_hex, width=1, tags="orb"
-        )
-        self.canvas.create_arc(
-            cx - r_ring2, cy - r_ring2, cx + r_ring2, cy + r_ring2,
-            start=angle_offset2 + 180, extent=110, style="arc", outline=glow_hex, width=1, tags="orb"
-        )
+        # 2. Update spinning arcs ring 1 (clockwise)
+        r_ring1 = 22.5 * scale
+        angle_offset1 = (self.pulse_phase * 35.0 * spin_multiplier) % 360
+        for idx, arc in enumerate(self.orb_items["arcs_r1"]):
+            start_angle = angle_offset1 + (idx * 180)
+            self.canvas.coords(arc, cx - r_ring1, cy - r_ring1, cx + r_ring1, cy + r_ring1)
+            self.canvas.itemconfigure(arc, start=start_angle, extent=80, outline=primary_hex)
 
-        # Draw thin dotted crosshair boundary
-        r_cross = 25 * scale
-        self.canvas.create_oval(
-            cx - r_cross, cy - r_cross, cx + r_cross, cy + r_cross,
-            outline=glow_hex, width=1, dash=(2, 4), tags="orb"
-        )
+        # 3. Update spinning arcs ring 2 (counter-clockwise)
+        r_ring2 = 17.5 * scale
+        angle_offset2 = (360 - (self.pulse_phase * 55.0 * spin_multiplier)) % 360
+        for idx, arc in enumerate(self.orb_items["arcs_r2"]):
+            start_angle = angle_offset2 + (idx * 180)
+            self.canvas.coords(arc, cx - r_ring2, cy - r_ring2, cx + r_ring2, cy + r_ring2)
+            self.canvas.itemconfigure(arc, start=start_angle, extent=100, outline=glow_hex)
 
-        # Draw solid inner core
-        self.canvas.create_oval(cx - r_base, cy - r_base, cx + r_base, cy + r_base, fill=primary_hex, outline="", tags="orb")
+        # 4. Update dotted crosshair
+        r_cross = 24.5 * scale
+        self.canvas.coords(self.orb_items["crosshair"], cx - r_cross, cy - r_cross, cx + r_cross, cy + r_cross)
+        self.canvas.itemconfigure(self.orb_items["crosshair"], outline=glow_hex)
 
-        # Render wake pulse animation if triggered
+        # 5. Update Corner Brackets (subtle breathing animation)
+        bracket_color = primary_hex if state_val != "idle" else "#475569"
+        for item in self.orb_items["brackets"]:
+            self.canvas.itemconfigure(item, fill=bracket_color)
+
+        # 6. Update solid core
+        self.canvas.coords(self.orb_items["core"], cx - r_base, cy - r_base, cx + r_base, cy + r_base)
+        self.canvas.itemconfigure(self.orb_items["core"], fill=primary_hex, outline="")
+
+        # 7. Update wake pulse
         if self.wake_pulse_active:
-            self.wake_pulse_radius += 3.5
+            self.wake_pulse_radius += 2.0
             if self.wake_pulse_radius > 60:
                 self.wake_pulse_active = False
+                self.canvas.coords(self.orb_items["wake"], 0, 0, 0, 0)
+                self.canvas.itemconfigure(self.orb_items["wake"], outline="")
             else:
                 fade = (60.0 - self.wake_pulse_radius) / 45.0
                 fade = max(0.0, min(1.0, fade))
                 pulse_color = self._blend_colors("#38BDF8", "#1E293B", 1.0 - fade)
-                self.canvas.create_oval(
+                self.canvas.coords(
+                    self.orb_items["wake"],
                     cx - self.wake_pulse_radius, cy - self.wake_pulse_radius,
-                    cx + self.wake_pulse_radius, cy + self.wake_pulse_radius,
-                    outline=pulse_color, width=2, tags="orb"
+                    cx + self.wake_pulse_radius, cy + self.wake_pulse_radius
                 )
+                self.canvas.itemconfigure(self.orb_items["wake"], outline=pulse_color)
+        else:
+            self.canvas.coords(self.orb_items["wake"], 0, 0, 0, 0)
+            self.canvas.itemconfigure(self.orb_items["wake"], outline="")
 
-        # Schedule next tick
-        self.root.after(40, self.animate_orb)
+        # Re-schedule at 16ms (~60 FPS) for buttery smooth motion
+        self.root.after(16, self.animate_orb)
 
     def _blend_colors(self, color1: str, color2: str, alpha: float) -> str:
         c1 = [int(color1[i:i+2], 16) for i in (1, 3, 5)]
