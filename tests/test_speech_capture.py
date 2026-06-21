@@ -29,3 +29,22 @@ def test_record_until_silence_returns_empty_when_no_audio(monkeypatch) -> None:
     assert isinstance(recording, np.ndarray)
     assert audio_seconds == 0.0
     assert ended_early is False
+
+
+def test_resolve_microphone_device(monkeypatch) -> None:
+    from desktop_voice_assistant.speech import resolve_microphone_device
+    
+    assert resolve_microphone_device(None) is None
+    assert resolve_microphone_device(2) == 2
+    
+    import sounddevice as sd
+    monkeypatch.setattr(sd, "query_devices", lambda: [
+        {"name": "Default Device", "max_input_channels": 2},
+        {"name": "Ambiguous Mic", "max_input_channels": 1},
+        {"name": "Ambiguous Mic", "max_input_channels": 2},
+        {"name": "Output Only", "max_input_channels": 0},
+    ])
+    
+    assert resolve_microphone_device("Ambiguous Mic") == 1
+    assert resolve_microphone_device("Default Device") == 0
+    assert resolve_microphone_device("Unknown Device") == "Unknown Device"

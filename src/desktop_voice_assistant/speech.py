@@ -13,6 +13,20 @@ from .models import TranscriptResult
 
 LOGGER = logging.getLogger(__name__)
 
+
+def resolve_microphone_device(device_setting: str | int | None) -> int | str | None:
+    if not device_setting or not isinstance(device_setting, str):
+        return device_setting
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        for idx, d in enumerate(devices):
+            if d.get("max_input_channels", 0) > 0 and d.get("name") == device_setting:
+                return idx
+    except Exception:
+        pass
+    return device_setting
+
 SUPPORTED_WAKE_WORDS = {
     "alexa": "alexa",
     "hey jarvis": "hey_jarvis",
@@ -104,7 +118,7 @@ class SpeechToText:
             min_seconds=self.settings.request_min_seconds,
             silence_timeout=self.settings.silence_timeout_seconds,
             speech_threshold=self.settings.speech_level_threshold,
-            input_device=self.settings.microphone_device,
+            input_device=resolve_microphone_device(self.settings.microphone_device),
         )
         if recording.size == 0:
             return TranscriptResult(text="", audio_seconds=audio_seconds, ended_early=ended_early)
@@ -243,12 +257,13 @@ class WakeWordListener:
                     LOGGER.debug("Wake word stream status: %s", status)
                 audio_queue.put(indata.copy().reshape(-1))
 
+            resolved_device = resolve_microphone_device(self.settings.microphone_device)
             with sd.InputStream(
                 samplerate=16000,
                 channels=1,
                 dtype="int16",
                 callback=callback,
-                device=self.settings.microphone_device,
+                device=resolved_device,
                 blocksize=1280,
             ):
                 self._ready = True
