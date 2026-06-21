@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import socket
+import sys
 
 from .actions import ActionExecutor
 from .assistant import DesktopAssistant
@@ -19,9 +21,31 @@ from .weather import WeatherService
 from .models import RuntimeState
 
 
+# We keep a global reference to the lock socket so it is not garbage collected
+_lock_socket: socket.socket | None = None
+
+
+def acquire_lock(port: int = 47711) -> socket.socket | None:
+    """Attempt to acquire a single-instance socket lock on localhost at the specified port."""
+    global _lock_socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", port))
+        s.listen(1)
+        _lock_socket = s
+        return s
+    except socket.error:
+        return None
+
+
 def main() -> None:
     log_path = configure_logging()
-    logging.getLogger(__name__).info("Logging to %s", log_path)
+    logger = logging.getLogger(__name__)
+    logger.info("Logging to %s", log_path)
+
+    if not acquire_lock():
+        logger.warning("Another instance of the desktop voice assistant is already running. Exiting.")
+        sys.exit(0)
 
     settings = Settings.load()
     router = IntentRouter()

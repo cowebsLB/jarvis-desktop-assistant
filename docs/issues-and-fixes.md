@@ -484,6 +484,17 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Fix type:
   - `Partial`
 
+### 40. Launching multiple concurrent app instances causes microphone conflicts and redundant behavior
+
+- Symptom:
+  - Starting the app multiple times (either manually or via an autoupdate flow) spawns multiple concurrent taskbar/tray icons and speech recording loops, causing overlapping microphone access errors and chaotic redundant transcripts.
+- Root cause:
+  - There was no check at the main entry point to verify if another instance of the application was already running.
+- Resolution:
+  - Implemented a localhost TCP socket lock on port `47711` at the app boot phase (`app.py`). Any subsequent instances failing to bind to this port log a warning and exit cleanly instead of starting another system tray or speech loop.
+- Fix type:
+  - `Complete`
+
 ## Current Open Issues
 
 ### Speech mis-transcription remains a source of failure

@@ -10,8 +10,9 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
 
 ## Main Runtime Flow
 
-1. Tray app starts.
-2. Wake word listener runs in the background.
+1. Application attempts to acquire a single-instance socket lock on localhost at port `47711`. If the socket cannot be bound, another instance is already running; it logs a warning and exits immediately.
+2. Tray app starts.
+3. Wake word listener runs in the background.
 3. Wake word triggers a single active request.
 4. Wake listener pauses while the request is handled.
 5. Audio is recorded with adaptive silence-based endpoint detection.
