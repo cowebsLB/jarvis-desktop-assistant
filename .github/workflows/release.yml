@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          pip install pyinstaller
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --windowed --name Jarvis scripts/jarvis_launcher.py
+
+      - name: Zip build
+        run: |
+          powershell Compress-Archive -Path dist\Jarvis.exe -DestinationPath dist\Jarvis-windows.zip
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/Jarvis.exe
+            dist/Jarvis-windows.zip
