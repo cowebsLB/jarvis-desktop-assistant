@@ -20,6 +20,7 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
 7. Intent router classifies the text.
 8. Assistant either:
   - answers through the local LLM
+  - escalates more complex QA to Gemini when enabled
   - answers from stored research when relevant
   - performs direct internal web research
   - fetches live weather
@@ -39,7 +40,9 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
   - tray icon and menu
   - request lifecycle
   - wake word control
+  - HUD visibility toggle
   - speech model warmup action
+  - settings panel launcher
   - single-flight request protection
   - wake pulse trigger for the floating HUD
 
@@ -50,6 +53,7 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
   - applies short-lived follow-up context before normal routing
   - emits transcript, intent, result, history, and state updates to the HUD
   - accepts HUD-originated typed input for confirmation or clarification flows
+  - enforces configurable confirmation policy for supported actions
 
 - `hud.py`
   - draggable always-on-top floating orb
@@ -57,6 +61,7 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
   - transcript / intent / reply bubble rendering
   - plan steps, research progress, citation, and recent-history display
   - inline confirmation buttons and text follow-up entry
+  - runtime hide/show without destroying assistant state flow
   - persisted HUD position through settings
 
 - `speech.py`
@@ -83,6 +88,7 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
   - page fetching and scraping
   - research summarization
   - archive recall
+  - optional archive persistence disablement
   - emits research sub-state transitions
 
 - `archive.py`
@@ -109,10 +115,25 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
 
 - `llm.py`
   - Ollama client wrapper
+  - Gemini client wrapper
+  - hybrid local/remote routing for QA
   - concise Jarvis-style assistant system prompt
+  - capability-aware fallback intent routing
+  - runtime-adjustable assistant style and name
+
+- `secret_store.py`
+  - local non-repo secret storage
+  - currently used for optional Gemini API credentials
 
 - `model_manager.py`
   - `faster-whisper` warmup helper
+
+- `productivity.py`
+  - local timers, reminders, alarms, and task storage
+
+- `settings_ui.py`
+  - tkinter settings editor launched from the tray
+  - syncs supported runtime settings back into the live assistant
 
 - `config.py`
   - settings schema
@@ -123,6 +144,9 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
 
 - User settings:
   - `%USERPROFILE%\\.desktop_voice_assistant\\settings.json`
+
+- Local secrets:
+  - `%USERPROFILE%\\.desktop_voice_assistant\\secrets.json`
 
 - Research archive:
   - `%USERPROFILE%\\.desktop_voice_assistant\\assistant.db`
@@ -137,18 +161,27 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
 - HUD position:
   - stored in settings as persisted window coordinates
 
+- HUD enablement:
+  - stored in settings
+  - runtime toggle now hides or restores the overlay without tearing down assistant event emission
+
 ## Safety Boundaries
 
 - No arbitrary shell execution by voice
 - No delete/move/write file actions by voice
 - App and site launches restricted to allowlists
 - Browser search used as a fallback only for explicit search-like requests
+- Remote-model usage is optional and only enabled when a local secret is present
 
 ## Known Architectural Tradeoffs
 
 - Intent routing is rule-based, not model-based
   - faster and safer for core actions
   - less flexible for unusual phrasing
+
+- QA model routing is heuristic
+  - keeps simple work local and cheap
+  - may need refinement as more workflows become multi-step or retrieval-heavy
 
 - Wake word uses a fixed pretrained phrase
   - practical now

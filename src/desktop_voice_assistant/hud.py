@@ -48,6 +48,8 @@ class FloatingHud:
         self.root: tk.Tk | None = None
         self.thread: threading.Thread | None = None
         self.on_submit_text = None
+        self._enabled = settings.hud_enabled
+        self._stopped = False
 
         # State data
         self.state: RuntimeState = RuntimeState.BOOTING
@@ -72,12 +74,20 @@ class FloatingHud:
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
             return
+        self._stopped = False
         self.thread = threading.Thread(target=self._run_gui, daemon=True, name="hud-gui-thread")
         self.thread.start()
 
     def stop(self) -> None:
+        self._stopped = True
         if self.root:
             self.queue.put(self.root.destroy)
+
+    def set_enabled(self, enabled: bool) -> None:
+        self._enabled = enabled
+        self.settings.hud_enabled = enabled
+        if self.root:
+            self.queue.put(lambda: self._ui_set_enabled(enabled))
 
     def wake_detected(self) -> None:
         self.queue.put(self._ui_wake_detected)
@@ -133,6 +143,17 @@ class FloatingHud:
             self.history_events.pop(0)
         self._refresh_history_ui()
 
+    def _ui_set_enabled(self, enabled: bool) -> None:
+        self._enabled = enabled
+        if not self.root:
+            return
+        if enabled:
+            self.root.deiconify()
+            self.root.lift()
+            self.root.attributes("-topmost", True)
+        else:
+            self.root.withdraw()
+
     # --- Tkinter GUI Implementation ---
 
     def _run_gui(self) -> None:
@@ -162,8 +183,11 @@ class FloatingHud:
         # Start loops
         self._check_queue()
         self.animate_orb()
+        self._ui_set_enabled(self._enabled)
 
         self.root.mainloop()
+        self.root = None
+        self.thread = None
 
     def _create_widgets(self) -> None:
         if not self.root:
@@ -384,6 +408,8 @@ class FloatingHud:
     def _refresh_hud(self) -> None:
         if not self.root:
             return
+        if not self._enabled:
+            return
 
         state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
         # Update Status Text
@@ -418,6 +444,8 @@ class FloatingHud:
 
     def _refresh_progress_ui(self) -> None:
         if not self.root:
+            return
+        if not self._enabled:
             return
         for w in self.steps_inner_frame.winfo_children():
             w.destroy()
@@ -494,6 +522,8 @@ class FloatingHud:
     def _refresh_citations_ui(self) -> None:
         if not self.root:
             return
+        if not self._enabled:
+            return
         for w in self.citations_inner_frame.winfo_children():
             w.destroy()
 
@@ -543,6 +573,8 @@ class FloatingHud:
 
     def _refresh_history_ui(self) -> None:
         if not self.root:
+            return
+        if not self._enabled:
             return
         for w in self.history_inner_frame.winfo_children():
             w.destroy()
@@ -714,4 +746,5 @@ class FloatingHud:
                 task()
             except queue.Empty:
                 break
-        self.root.after(80, self._check_queue)
+        if not self._stopped:
+            self.root.after(80, self._check_queue)

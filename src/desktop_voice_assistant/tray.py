@@ -135,17 +135,8 @@ class TrayApplication:
     def _toggle_hud(self, icon, item) -> None:
         self.settings.hud_enabled = not self.settings.hud_enabled
         self.settings.save()
-        if self.settings.hud_enabled:
-            if not self.hud:
-                from .hud import FloatingHud
-                self.hud = FloatingHud(self.settings)
-                self.hud.on_submit_text = self.submit_text_request
-                self.assistant.hud = self.hud
-                self.assistant.history.subscribe(self.hud.on_history_event)
-            self.hud.start()
-        else:
-            if self.hud:
-                self.hud.stop()
+        if self.hud:
+            self.hud.set_enabled(self.settings.hud_enabled)
 
     def _open_settings_ui(self, icon, item) -> None:
         if self.hud and self.hud.root and self.hud.thread and self.hud.thread.is_alive():
@@ -178,20 +169,22 @@ class TrayApplication:
             self.assistant.set_runtime_state(RuntimeState.IDLE, reason="settings sync: wake word disabled")
 
         # Sync HUD
-        if self.settings.hud_enabled:
-            if not self.hud:
-                from .hud import FloatingHud
-                self.hud = FloatingHud(self.settings)
-                self.hud.on_submit_text = self.submit_text_request
-                self.assistant.hud = self.hud
-                self.assistant.history.subscribe(self.hud.on_history_event)
-            self.hud.start()
-        else:
-            if self.hud:
-                self.hud.stop()
+        if self.hud:
+            self.hud.set_enabled(self.settings.hud_enabled)
 
-        # Update speech rate for TTS if supported
+        # Sync assistant runtime configuration
         self.assistant.settings = self.settings
+        self.assistant.session.followup_seconds = self.settings.conversation_followup_seconds
+        if hasattr(self.assistant.llm, "update_settings"):
+            self.assistant.llm.update_settings(
+                model=self.settings.ollama_model,
+                assistant_name=self.settings.assistant_name,
+                assistant_style=self.settings.assistant_style,
+                remote_model=self.settings.gemini_model,
+            )
+        if self.assistant.researcher:
+            self.assistant.researcher.fetch_limit = self.settings.web_fetch_limit
+            self.assistant.researcher.archive_enabled = self.settings.web_archive_enabled
         if hasattr(self.assistant.tts, "engine") and self.assistant.tts.engine:
             try:
                 self.assistant.tts.engine.setProperty("rate", self.settings.speech_rate)

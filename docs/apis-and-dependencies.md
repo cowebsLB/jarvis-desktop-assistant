@@ -17,6 +17,13 @@
   - `nomic-embed-text`
 - embedding availability is now surfaced as runtime downgrade status rather than failing silently
 
+### google-genai
+
+- optional remote model client for Gemini fallback
+- used only when Gemini fallback is enabled and a local API key is present
+- current default remote model:
+  - `gemini-3.5-flash`
+
 ### requests
 
 - HTTP client for:
@@ -73,6 +80,18 @@
 - built-in local database engine for long-lived research archive, tasks list, task embeddings, conversation turns, and conversation embeddings
 
 ## External APIs
+
+### Gemini API
+
+- purpose:
+  - handle more complex reasoning or context-heavy QA as a fallback to the local model
+- used by:
+  - `llm.py`
+- auth:
+  - API key stored locally in `%USERPROFILE%\\.desktop_voice_assistant\\secrets.json`
+- notes:
+  - disabled by default unless enabled in settings
+  - local model remains the default path for simple requests
 
 ### Open-Meteo Geocoding API
 
@@ -133,6 +152,15 @@
   - `hud_enabled`
   - `hud_position_x`
   - `hud_position_y`
+
+### Secrets Store
+
+- path:
+  - `%USERPROFILE%\\.desktop_voice_assistant\\secrets.json`
+- purpose:
+  - store optional API credentials outside the repository
+- current keys:
+  - `gemini_api_key`
 
 ### App Memory
 

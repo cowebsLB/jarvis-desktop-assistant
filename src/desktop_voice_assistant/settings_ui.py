@@ -4,7 +4,12 @@ import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from .config import Settings, SUPPORTED_WAKE_WORDS
+from .config import (
+    Settings,
+    SUPPORTED_ASSISTANT_STYLES,
+    SUPPORTED_CONFIRMATION_POLICIES,
+    SUPPORTED_WAKE_WORDS,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +22,7 @@ class SettingsPanel:
 
         self.window.title("Jarvis Settings")
         self.window.configure(bg="#0F172A")
-        self.window.geometry("450x670")
+        self.window.geometry("470x860")
         self.window.resizable(False, False)
 
         # Apply basic styling to ttk elements
@@ -49,8 +54,20 @@ class SettingsPanel:
         self.assistant_name_var = tk.StringVar(value=self.settings.assistant_name)
         self._create_field_entry(gen_frame, "Assistant Name:", self.assistant_name_var, 0)
 
+        lbl_style = tk.Label(gen_frame, text="Assistant Style:", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
+        lbl_style.grid(row=1, column=0, sticky="w", pady=4)
+        self.assistant_style_var = tk.StringVar(value=self.settings.assistant_style)
+        self.assistant_style_menu = ttk.Combobox(
+            gen_frame,
+            textvariable=self.assistant_style_var,
+            values=sorted(SUPPORTED_ASSISTANT_STYLES),
+            state="readonly",
+            width=22,
+        )
+        self.assistant_style_menu.grid(row=1, column=1, sticky="w", pady=4, padx=5)
+
         self.default_location_var = tk.StringVar(value=self.settings.default_location)
-        self._create_field_entry(gen_frame, "Default Location:", self.default_location_var, 1)
+        self._create_field_entry(gen_frame, "Default Location:", self.default_location_var, 2)
 
         # 2. Section: Speech & Listening
         self._create_section_header("Voice & Wake Word")
@@ -60,9 +77,12 @@ class SettingsPanel:
         self.wake_enabled_var = tk.BooleanVar(value=self.settings.wake_word_enabled)
         self._create_field_check(speech_frame, "Wake Word Enabled", self.wake_enabled_var, 0)
 
+        self.wake_cue_var = tk.BooleanVar(value=self.settings.wake_cue_enabled)
+        self._create_field_check(speech_frame, "Audible Listen Cue", self.wake_cue_var, 1)
+
         # Wake word phrase dropdown
         lbl = tk.Label(speech_frame, text="Wake Phrase:", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
-        lbl.grid(row=1, column=0, sticky="w", pady=4)
+        lbl.grid(row=2, column=0, sticky="w", pady=4)
         
         self.wake_phrase_var = tk.StringVar(value=self.settings.wake_word_phrase)
         wake_words = sorted(list(SUPPORTED_WAKE_WORDS))
@@ -73,11 +93,11 @@ class SettingsPanel:
             state="readonly",
             width=22
         )
-        self.wake_phrase_menu.grid(row=1, column=1, sticky="w", pady=4, padx=5)
+        self.wake_phrase_menu.grid(row=2, column=1, sticky="w", pady=4, padx=5)
 
         # Microphone input device dropdown
         lbl_mic = tk.Label(speech_frame, text="Microphone:", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
-        lbl_mic.grid(row=2, column=0, sticky="w", pady=4)
+        lbl_mic.grid(row=3, column=0, sticky="w", pady=4)
         
         try:
             import sounddevice as sd
@@ -100,11 +120,11 @@ class SettingsPanel:
             state="readonly",
             width=22
         )
-        self.mic_menu.grid(row=2, column=1, sticky="w", pady=4, padx=5)
+        self.mic_menu.grid(row=3, column=1, sticky="w", pady=4, padx=5)
 
         # Speech rate slider
         lbl_rate = tk.Label(speech_frame, text="Speech Rate (WPM):", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
-        lbl_rate.grid(row=3, column=0, sticky="w", pady=4)
+        lbl_rate.grid(row=4, column=0, sticky="w", pady=4)
         
         self.speech_rate_var = tk.IntVar(value=self.settings.speech_rate)
         self.rate_scale = tk.Scale(
@@ -119,7 +139,7 @@ class SettingsPanel:
             troughcolor="#1E293B",
             activebackground="#38BDF8"
         )
-        self.rate_scale.grid(row=3, column=1, sticky="we", pady=4, padx=5)
+        self.rate_scale.grid(row=4, column=1, sticky="we", pady=4, padx=5)
 
         # 3. Section: Local AI & Web Search
         self._create_section_header("Intelligence & Search")
@@ -129,15 +149,27 @@ class SettingsPanel:
         self.semantic_retrieval_var = tk.BooleanVar(value=self.settings.semantic_retrieval_enabled)
         self._create_field_check(ai_frame, "Enable Semantic Retrieval", self.semantic_retrieval_var, 0)
 
+        self.archive_enabled_var = tk.BooleanVar(value=self.settings.web_archive_enabled)
+        self._create_field_check(ai_frame, "Archive Web Research Locally", self.archive_enabled_var, 1)
+
+        self.open_after_answer_var = tk.BooleanVar(value=self.settings.web_open_after_answer)
+        self._create_field_check(ai_frame, "Open Top Source After Web Answer", self.open_after_answer_var, 2)
+
         self.ollama_model_var = tk.StringVar(value=self.settings.ollama_model)
-        self._create_field_entry(ai_frame, "Ollama LLM Model:", self.ollama_model_var, 1)
+        self._create_field_entry(ai_frame, "Ollama LLM Model:", self.ollama_model_var, 3)
+
+        self.gemini_enabled_var = tk.BooleanVar(value=self.settings.gemini_enabled)
+        self._create_field_check(ai_frame, "Enable Gemini Complexity Fallback", self.gemini_enabled_var, 4)
+
+        self.gemini_model_var = tk.StringVar(value=self.settings.gemini_model)
+        self._create_field_entry(ai_frame, "Gemini Model:", self.gemini_model_var, 5)
 
         self.embedding_model_var = tk.StringVar(value=self.settings.embedding_model)
-        self._create_field_entry(ai_frame, "Embedding Model:", self.embedding_model_var, 2)
+        self._create_field_entry(ai_frame, "Embedding Model:", self.embedding_model_var, 6)
 
         # Web fetch limit slider
         lbl_limit = tk.Label(ai_frame, text="Search Fetch Limit:", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
-        lbl_limit.grid(row=3, column=0, sticky="w", pady=4)
+        lbl_limit.grid(row=7, column=0, sticky="w", pady=4)
         
         self.fetch_limit_var = tk.IntVar(value=self.settings.web_fetch_limit)
         self.limit_scale = tk.Scale(
@@ -152,7 +184,24 @@ class SettingsPanel:
             troughcolor="#1E293B",
             activebackground="#38BDF8"
         )
-        self.limit_scale.grid(row=3, column=1, sticky="we", pady=4, padx=5)
+        self.limit_scale.grid(row=7, column=1, sticky="we", pady=4, padx=5)
+
+        lbl_recall = tk.Label(ai_frame, text="Archive Recall Limit:", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
+        lbl_recall.grid(row=8, column=0, sticky="w", pady=4)
+        self.archive_recall_var = tk.IntVar(value=self.settings.archive_recall_limit)
+        self.recall_scale = tk.Scale(
+            ai_frame,
+            from_=1,
+            to_=10,
+            orient="horizontal",
+            variable=self.archive_recall_var,
+            bg="#0F172A",
+            fg="#F1F5F9",
+            highlightthickness=0,
+            troughcolor="#1E293B",
+            activebackground="#38BDF8"
+        )
+        self.recall_scale.grid(row=8, column=1, sticky="we", pady=4, padx=5)
 
         # 4. Section: Interface & HUD
         self._create_section_header("HUD & System")
@@ -162,9 +211,21 @@ class SettingsPanel:
         self.hud_enabled_var = tk.BooleanVar(value=self.settings.hud_enabled)
         self._create_field_check(hud_frame, "Enable Floating HUD Overlay", self.hud_enabled_var, 0)
 
+        lbl_confirm = tk.Label(hud_frame, text="Confirmation Policy:", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
+        lbl_confirm.grid(row=1, column=0, sticky="w", pady=4)
+        self.confirmation_policy_var = tk.StringVar(value=self.settings.confirmation_policy)
+        self.confirmation_policy_menu = ttk.Combobox(
+            hud_frame,
+            textvariable=self.confirmation_policy_var,
+            values=sorted(SUPPORTED_CONFIRMATION_POLICIES),
+            state="readonly",
+            width=22,
+        )
+        self.confirmation_policy_menu.grid(row=1, column=1, sticky="w", pady=4, padx=5)
+
         # Follow-up timeout slider
         lbl_timeout = tk.Label(hud_frame, text="Follow-up Timeout (s):", font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A", anchor="w")
-        lbl_timeout.grid(row=1, column=0, sticky="w", pady=4)
+        lbl_timeout.grid(row=2, column=0, sticky="w", pady=4)
         
         self.followup_var = tk.IntVar(value=self.settings.conversation_followup_seconds)
         self.timeout_scale = tk.Scale(
@@ -179,7 +240,7 @@ class SettingsPanel:
             troughcolor="#1E293B",
             activebackground="#38BDF8"
         )
-        self.timeout_scale.grid(row=1, column=1, sticky="we", pady=4, padx=5)
+        self.timeout_scale.grid(row=2, column=1, sticky="we", pady=4, padx=5)
 
         # Buttons
         btn_frame = tk.Frame(self.main_container, bg="#0F172A")
@@ -284,16 +345,24 @@ class SettingsPanel:
 
         # Write updates back to settings object
         self.settings.assistant_name = assistant_name
+        self.settings.assistant_style = self.assistant_style_var.get()
+        self.settings.confirmation_policy = self.confirmation_policy_var.get()
         self.settings.default_location = default_location
         self.settings.wake_word_enabled = self.wake_enabled_var.get()
+        self.settings.wake_cue_enabled = self.wake_cue_var.get()
         self.settings.wake_word_phrase = self.wake_phrase_var.get()
         self.settings.speech_rate = self.speech_rate_var.get()
         mic_val = self.mic_device_var.get()
         self.settings.microphone_device = None if mic_val == "Default" else mic_val
         self.settings.semantic_retrieval_enabled = self.semantic_retrieval_var.get()
+        self.settings.web_archive_enabled = self.archive_enabled_var.get()
+        self.settings.web_open_after_answer = self.open_after_answer_var.get()
         self.settings.ollama_model = ollama_model
+        self.settings.gemini_enabled = self.gemini_enabled_var.get()
+        self.settings.gemini_model = self.gemini_model_var.get().strip() or self.settings.gemini_model
         self.settings.embedding_model = embedding_model
         self.settings.web_fetch_limit = self.fetch_limit_var.get()
+        self.settings.archive_recall_limit = self.archive_recall_var.get()
         self.settings.hud_enabled = self.hud_enabled_var.get()
         self.settings.conversation_followup_seconds = self.followup_var.get()
 

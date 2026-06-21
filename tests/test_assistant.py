@@ -121,6 +121,21 @@ class FakeResearcher:
         )
 
 
+class MultiSourceResearcher(FakeResearcher):
+    def research(self, query: str) -> ResearchResult:
+        self.research_calls.append(query)
+        return ResearchResult(
+            query=query,
+            answer=f"research answer for {query}",
+            spoken=f"spoken answer for {query}",
+            sources=[
+                ResearchSource(title="Source One", url="https://example.com/one", snippet="one"),
+                ResearchSource(title="Source Two", url="https://example.com/two", snippet="two"),
+                ResearchSource(title="Source Three", url="https://example.com/three", snippet="three"),
+            ],
+        )
+
+
 def test_missing_stt_returns_spoken_error() -> None:
     tts = FakeTTS()
     assistant = DesktopAssistant(
@@ -244,6 +259,54 @@ def test_followup_open_it_opens_last_source(monkeypatch) -> None:
 
     assert second.success
     assert opened == ["https://example.com/one"]
+
+
+def test_followup_open_second_one_opens_second_source(monkeypatch) -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    researcher = MultiSourceResearcher()
+    opened: list[str] = []
+    monkeypatch.setattr("webbrowser.open", lambda url: opened.append(url))
+    assistant = DesktopAssistant(
+        Settings(conversation_followup_seconds=45),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        SequenceSTT(["search the web for python testing", "open the second one"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+        researcher,
+    )
+
+    assistant.listen_and_handle()
+    second = assistant.listen_and_handle()
+
+    assert second.success
+    assert opened == ["https://example.com/two"]
+
+
+def test_followup_summarize_second_one_recalls_second_source_title() -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    researcher = MultiSourceResearcher()
+    assistant = DesktopAssistant(
+        Settings(conversation_followup_seconds=45),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        SequenceSTT(["search the web for python testing", "summarize the second one"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+        researcher,
+    )
+
+    assistant.listen_and_handle()
+    second = assistant.listen_and_handle()
+
+    assert second.success
+    assert researcher.recall_calls[-1] == "Source Two"
 
 
 def test_followup_expires_and_does_not_reuse_previous_context() -> None:
@@ -466,6 +529,21 @@ def test_real_hud_queues_events() -> None:
     assert hud.queue.qsize() == 6
 
 
+def test_real_hud_toggle_updates_enabled_state() -> None:
+    from desktop_voice_assistant.hud import FloatingHud
+
+    settings = Settings(hud_enabled=True)
+    hud = FloatingHud(settings)
+
+    hud.set_enabled(False)
+    assert settings.hud_enabled is False
+    assert hud._enabled is False
+
+    hud.set_enabled(True)
+    assert settings.hud_enabled is True
+    assert hud._enabled is True
+
+
 def test_assistant_productivity_routing() -> None:
     from desktop_voice_assistant.assistant import DesktopAssistant
     from desktop_voice_assistant.intent_router import IntentRouter
@@ -609,5 +687,34 @@ def test_destructive_request_requires_confirmation() -> None:
     assistant.productivity.stop()
 
 
+def test_confirmation_policy_always_requires_confirmation_for_open_target(monkeypatch) -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(
+        action,
+        "preview_open_target",
+        lambda target: OpenTargetPreview(
+            requested_target="notepad",
+            resolved_target="notepad",
+            exact_match=True,
+            launchable=True,
+        ),
+    )
+    assistant = DesktopAssistant(
+        Settings(confirmation_policy="always"),
+        IntentRouter(),
+        action,
+        SequenceSTT(["open notepad"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
 
+    result = assistant.listen_and_handle()
+
+    assert not result.success
+    assert "confirm opening notepad" in result.spoken_reply.lower()
+    assert assistant.session.snapshot.pending_confirmation is not None
 

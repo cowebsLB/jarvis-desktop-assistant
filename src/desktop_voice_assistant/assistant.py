@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import webbrowser
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -8,7 +9,7 @@ from .actions import ActionExecutor
 from .config import Settings
 from .history import HistoryEvent, HistoryRecorder
 from .intent_router import IntentRouter
-from .llm import OllamaAssistant
+from .llm import AssistantLLM
 from .models import AssistantRequest, ActionResult, IntentResult, RuntimeState
 from .research import WebResearcher
 from .response_style import ResponseStyle
@@ -29,7 +30,7 @@ class DesktopAssistant:
         actions: ActionExecutor,
         stt,
         tts: TextToSpeech,
-        llm: OllamaAssistant,
+        llm: AssistantLLM,
         weather: WeatherService,
         history: HistoryRecorder,
         researcher: WebResearcher | None = None,
@@ -378,10 +379,17 @@ class DesktopAssistant:
         if not self.settings.web_search_enabled or not self.researcher:
             return ActionResult(False, "Web research is disabled.", "Web research is disabled right now.")
         research = self.researcher.research(query)
+        message = research.answer
+        spoken = research.spoken
+        if self.settings.web_open_after_answer and research.sources:
+            top_source = research.sources[0]
+            webbrowser.open(top_source.url)
+            message = f"{message} Opened top source: {top_source.title}."
+            spoken = f"{spoken} I've opened the top source as well."
         return ActionResult(
             True,
-            research.answer,
-            research.spoken,
+            message,
+            spoken,
             sources=research.sources,
         )
 
@@ -461,6 +469,16 @@ class DesktopAssistant:
                 False,
                 f"Pending confirmation for {preview.fuzzy_match}.",
                 f"I heard {preview.requested_target}. Do you want {preview.fuzzy_match}?",
+            )
+        if self.settings.confirmation_policy == "always" and preview.launchable:
+            confirmed_intent = IntentResult("open_target", intent.confidence, {"target": preview.resolved_target})
+            prompt = f"Confirm opening {preview.resolved_target}?"
+            self.session.set_confirmation(confirmed_intent, prompt)
+            self.set_runtime_state(RuntimeState.AWAITING_CONFIRMATION, reason="confirmation policy requires approval")
+            return ActionResult(
+                False,
+                f"Pending confirmation for {preview.resolved_target}.",
+                prompt,
             )
         self.set_runtime_state(RuntimeState.EXECUTING, reason=f"executing intent {intent.intent}")
         return self.actions.execute(intent)

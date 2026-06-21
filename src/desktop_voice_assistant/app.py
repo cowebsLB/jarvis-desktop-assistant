@@ -10,11 +10,12 @@ from .config import Settings
 from .history import HistoryEvent, HistoryRecorder
 from .hud import FloatingHud
 from .intent_router import IntentRouter
-from .llm import OllamaAssistant
+from .llm import GeminiAssistant, HybridAssistant, OllamaAssistant
 from .logging_utils import configure_logging
 from .archive import AssistantArchive
 from .embeddings import EmbeddingService
 from .research import WebResearcher
+from .secret_store import SecretStore
 from .speech import MissingSpeechToText, MissingTextToSpeech, SpeechToText, TextToSpeech
 from .tray import TrayApplication
 from .weather import WeatherService
@@ -50,10 +51,9 @@ def main() -> None:
     settings = Settings.load()
     router = IntentRouter()
     actions = ActionExecutor(settings)
-    hud = FloatingHud(settings) if settings.hud_enabled else None
+    hud = FloatingHud(settings)
     history = HistoryRecorder()
-    if hud:
-        history.subscribe(hud.on_history_event)
+    history.subscribe(hud.on_history_event)
     history.append(
         HistoryEvent(
             kind="app_started",
@@ -71,7 +71,24 @@ def main() -> None:
     except Exception as exc:
         logging.getLogger(__name__).warning("Text-to-speech unavailable: %s", exc)
         tts = MissingTextToSpeech(str(exc))
-    llm = OllamaAssistant(settings.ollama_model)
+    local_llm = OllamaAssistant(
+        settings.ollama_model,
+        assistant_name=settings.assistant_name,
+        assistant_style=settings.assistant_style,
+    )
+    gemini_key = SecretStore().get("gemini_api_key")
+    remote_llm = None
+    if settings.gemini_enabled and gemini_key:
+        try:
+            remote_llm = GeminiAssistant(
+                settings.gemini_model,
+                gemini_key,
+                assistant_name=settings.assistant_name,
+                assistant_style=settings.assistant_style,
+            )
+        except Exception as exc:
+            logger.warning("Gemini fallback unavailable: %s", exc)
+    llm = HybridAssistant(local_llm, remote_llm)
     archive = AssistantArchive()
     embedder = EmbeddingService(settings.embedding_model) if settings.semantic_retrieval_enabled else None
     assistant = None
@@ -80,6 +97,7 @@ def main() -> None:
         archive,
         fetch_limit=settings.web_fetch_limit,
         embedder=embedder,
+        archive_enabled=settings.web_archive_enabled,
         on_state_change=lambda state, reason: assistant.set_runtime_state(state, reason=reason) if assistant else None,
     )
     try:
@@ -91,8 +109,7 @@ def main() -> None:
     assistant = DesktopAssistant(settings, router, actions, stt, tts, llm, weather, history, researcher, hud=hud)
     assistant.set_runtime_state(RuntimeState.IDLE, reason="assistant boot complete")
     tray = TrayApplication(assistant, settings, hud=hud)
-    if hud:
-        hud.on_submit_text = tray.submit_text_request
+    hud.on_submit_text = tray.submit_text_request
     tray.run()
 
 

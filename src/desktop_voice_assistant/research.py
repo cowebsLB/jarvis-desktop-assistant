@@ -23,12 +23,14 @@ class WebResearcher:
         archive: AssistantArchive,
         fetch_limit: int = 3,
         embedder: EmbeddingService | None = None,
+        archive_enabled: bool = True,
         on_state_change=None,
     ) -> None:
         self.llm = llm
         self.archive = archive
         self.fetch_limit = fetch_limit
         self.embedder = embedder
+        self.archive_enabled = archive_enabled
         self.on_state_change = on_state_change
         self.session = requests.Session()
         self.session.headers.update(
@@ -97,12 +99,13 @@ class WebResearcher:
         answer = self.llm.answer_with_context(query, prompt)
         answer = self._merge_answer_note(answer, evidence_note)
         self._emit_state(RuntimeState.ARCHIVING_SOURCES, "storing research")
-        self.archive.store_sources(query, usable_sources, page_content)
-        for source in usable_sources:
-            content = page_content.get(source.url, "")
-            vector = self._embed_text(f"{source.title}\n{source.snippet}\n{content}")
-            if vector:
-                self.archive.store_embedding(source.url, vector)
+        if self.archive_enabled:
+            self.archive.store_sources(query, usable_sources, page_content)
+            for source in usable_sources:
+                content = page_content.get(source.url, "")
+                vector = self._embed_text(f"{source.title}\n{source.snippet}\n{content}")
+                if vector:
+                    self.archive.store_embedding(source.url, vector)
         spoken = self._append_status_notes(f"{answer} I can open the sources if you like.", embedding_note)
         return ResearchResult(query=query, answer=answer, spoken=spoken, sources=usable_sources)
 

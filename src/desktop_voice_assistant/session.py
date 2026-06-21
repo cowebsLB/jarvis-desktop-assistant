@@ -70,6 +70,9 @@ class SessionManager:
         if not self.snapshot.is_followup_active():
             return None
 
+        if ordinal_followup := self._resolve_ordinal_followup(normalized_text):
+            return ordinal_followup
+
         if normalized_text in {"open it", "open that", "open the source", "open the first source"}:
             if self.snapshot.last_sources:
                 source = self.snapshot.last_sources[0]
@@ -89,6 +92,39 @@ class SessionManager:
             if self.snapshot.last_query:
                 return "web_search", {"query": f"{self.snapshot.last_query} today"}
 
+        return None
+
+    def _resolve_ordinal_followup(self, normalized_text: str) -> tuple[str, dict[str, str]] | None:
+        index = self._ordinal_index(normalized_text)
+        if index is None:
+            return None
+
+        if normalized_text.startswith("open ") and len(self.snapshot.last_sources) > index:
+            source = self.snapshot.last_sources[index]
+            return "open_source", {"url": source.url, "title": source.title}
+
+        if normalized_text.startswith(("summarize ", "what do you know about ")) and len(self.snapshot.last_sources) > index:
+            source = self.snapshot.last_sources[index]
+            return "recall_memory", {"query": source.title}
+
+        return None
+
+    @staticmethod
+    def _ordinal_index(normalized_text: str) -> int | None:
+        mapping = [
+            ("second", 1),
+            ("2nd", 1),
+            ("third", 2),
+            ("3rd", 2),
+            ("first", 0),
+            ("1st", 0),
+            ("three", 2),
+            ("two", 1),
+            ("one", 0),
+        ]
+        for token, index in mapping:
+            if f" {token} " in f" {normalized_text} ":
+                return index
         return None
 
     def set_confirmation(self, intent: IntentResult, prompt: str) -> None:

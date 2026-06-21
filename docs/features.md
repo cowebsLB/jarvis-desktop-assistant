@@ -28,6 +28,7 @@
 - Local offline TTS using `pyttsx3`
 - Prefers a more natural installed Windows voice such as `Zira` when available
 - Spoken phrasing is customized toward a Stark-house butler-tech tone instead of flat stock confirmations
+- Assistant style can now be switched between `stark-butler`, `concise`, and `neutral`
 - Spoken confirmations and spoken weather/QA responses supported
 
 ### Intent Routing
@@ -118,6 +119,9 @@ Current normalization handles:
   - fetches and scrapes source pages
   - summarizes the findings aloud
   - stores the material locally for later recall
+- research settings can now control:
+  - whether fetched research is archived locally
+  - whether the top source opens automatically after an answer
 - research answers append a brief offer to open sources if needed
 - live answers now add caution when:
   - evidence is limited
@@ -132,6 +136,7 @@ Current normalization handles:
 - stores local embeddings for semantic recall when the embedding model is available
 - stored hits now expose freshness metadata so older notes can be marked stale in recall
 - semantic retrieval now degrades explicitly to keyword-only mode when embeddings are unavailable
+- archive recall limit is configurable from the settings panel
 
 ### Weather
 
@@ -147,8 +152,23 @@ Current normalization handles:
 - local question answering through Ollama
 - currently configured local model:
   - `qwen2.5-coder:1.5B`
+- optional Gemini fallback for more complex requests when enabled
+- current default Gemini setting:
+  - `gemini-3.5-flash`
 - archived research is now used as extra context when relevant so the smaller model answers from evidence instead of memory alone
 - semantic archive recall lets follow-up phrasing drift without depending on exact keyword matches
+
+### Hybrid Model Routing
+
+- simple requests stay on the local Ollama model
+- more complex prompts can route to Gemini when enabled and a local API key is available
+- current routing signals include:
+  - long questions
+  - large retrieved context
+  - analysis / compare / tradeoff / plan style requests
+  - multi-question prompts
+- if Gemini fails at runtime, Jarvis falls back to the local model instead of failing the whole request
+- Gemini is not used for desktop intent routing; intent classification still stays local-first
 
 ### Follow-Up Context
 
@@ -158,9 +178,11 @@ Current normalization handles:
   - `search again`
   - `search again but for today`
   - `open it`
+  - `open the second one`
+  - `summarize the second one`
 - follow-up context can reuse:
   - the last research query
-  - the first source from the last research result
+  - the first few sources from the last research result
   - the last opened target
 - follow-up context expires after a configurable timeout
 
@@ -173,6 +195,9 @@ Current normalization handles:
   - `summarize that`
 - fuzzy app-name recovery now asks for confirmation before launch
 - destructive actions (such as clearing tasks, timers, reminders, and alarms) now prompt for explicit user confirmation before executing
+- confirmation policy now supports:
+  - `smart`
+  - `always`
 - confirmation responses currently supported:
   - `yes`
   - `yeah`
@@ -193,9 +218,21 @@ Current normalization handles:
 - manual `Listen now`
 - `Warm speech model`
 - wake-word enable/disable
+- HUD overlay enable/disable
+- tray-launched settings panel
 - open settings file
 - quit
 - tray title now reflects assistant runtime state instead of a loose ad-hoc label
+
+### Settings Panel
+
+- assistant name and assistant style
+- wake-word enablement, wake phrase, microphone device, and audible listen cue
+- speech rate
+- semantic retrieval toggle, Ollama model, Gemini fallback toggle, Gemini model, embedding model, search fetch limit, and archive recall limit
+- archive enablement and auto-open-top-source behavior for web research
+- HUD enablement and follow-up timeout
+- confirmation policy
 
 ### Floating HUD
 
@@ -212,6 +249,10 @@ Current normalization handles:
 - HUD interaction currently includes:
   - `Yes` / `No` confirmation buttons
   - text entry for clarification or typed follow-up submission
+- HUD polish currently includes:
+  - clickable source links
+  - compact chevron collapse / expand control
+  - runtime tray visibility toggle without restarting the assistant
 - HUD window can be dragged and its position is saved in settings
 - HUD state is driven directly from assistant and tray events rather than log polling
 
@@ -281,7 +322,7 @@ Current normalization handles:
 ### Verification Baseline
 
 - automated test suite currently passes:
-  - `106/106`
+  - `120/120`
 
 ## Implemented But Limited
 
@@ -319,7 +360,6 @@ Current normalization handles:
 - it does not yet show:
   - full settings controls
   - richer inline history navigation
-  - richer citation interaction than title-only display
 
 ### Web Research Limits
 
@@ -334,6 +374,11 @@ Current normalization handles:
 - response style defaults to `stark-butler`
 - confirmations stay brief, formal, and slightly dry rather than casual
 - generated answers are guided toward clipped status updates and restrained wit
+
+### Secrets Handling
+
+- optional remote API keys are stored locally under `%USERPROFILE%\.desktop_voice_assistant\secrets.json`
+- secrets are kept outside the repository and outside normal settings docs/worklog flows
 
 ## Not Implemented Yet
 

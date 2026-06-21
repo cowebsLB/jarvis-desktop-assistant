@@ -21,6 +21,20 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Fix type:
   - `Permanent`
 
+### 43. The small local model was not enough for harder reasoning and large-context prompts
+
+- Symptom:
+  - simple local QA worked, but more detailed planning, compare/tradeoff prompts, and large retrieved contexts could outrun the local model
+- Root cause:
+  - the assistant used a single tiny local model for every QA request regardless of complexity
+- Resolution:
+  - added optional Gemini fallback routing for complex QA
+  - kept desktop intent routing local-first
+  - added runtime fallback back to the local model if Gemini fails
+  - stored the remote API key in a local secrets file instead of embedding it in repo config
+- Fix type:
+  - `Partial`
+
 ### 2. Runtime dependencies too heavy for one-shot install
 
 - Symptom:
@@ -494,6 +508,34 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
   - Implemented a localhost TCP socket lock on port `47711` at the app boot phase (`app.py`). Any subsequent instances failing to bind to this port log a warning and exit cleanly instead of starting another system tray or speech loop.
 - Fix type:
   - `Complete`
+
+### 41. HUD overlay toggle could leave the assistant writing into a dead UI queue
+
+- Symptom:
+  - disabling the HUD from the tray could destroy the window, but the assistant would still keep emitting HUD events afterward
+  - re-enabling the overlay depended on recreate behavior instead of a clean visibility toggle
+- Root cause:
+  - HUD enablement was treated like full teardown instead of a runtime visible/hidden state
+- Resolution:
+  - kept a persistent HUD instance wired for the whole app lifecycle
+  - changed tray and settings synchronization to hide/show the HUD instead of destroying it during normal toggles
+  - kept startup with `hud_enabled = false` compatible with later enablement
+- Fix type:
+  - `Permanent`
+
+### 42. Several settings existed in config but were not fully wired into live assistant behavior
+
+- Symptom:
+  - changing assistant style, archive behavior, or confirmation preferences in settings did not consistently affect runtime behavior
+- Root cause:
+  - some configuration fields were saved, but not propagated through the live LLM, research, or confirmation paths
+- Resolution:
+  - wired assistant style into the Ollama system prompt builder
+  - added runtime confirmation-policy handling
+  - made research archive persistence honor settings
+  - synchronized live assistant, researcher, and session settings when saved from the settings panel
+- Fix type:
+  - `Permanent`
 
 ## Current Open Issues
 

@@ -134,3 +134,18 @@ def test_research_result_keeps_sources_when_available(tmp_path) -> None:
 
     assert len(result.sources) == 1
     assert result.sources[0].url == "https://example.com/pytest"
+
+
+def test_research_respects_archive_disabled_setting(tmp_path) -> None:
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    researcher = WebResearcher(FakeLLM(), archive, fetch_limit=2, embedder=FakeEmbedder({}), archive_enabled=False)
+    researcher._search_duckduckgo = lambda query: [
+        ResearchSource(title="Pytest docs", url="https://example.com/pytest", snippet="Python tests")
+    ]
+    researcher._fetch_page_text = lambda url: "Pytest is a testing framework for Python."
+
+    result = researcher.research("python testing")
+    stored = archive.search("python testing", limit=3)
+
+    assert result.sources
+    assert stored == []

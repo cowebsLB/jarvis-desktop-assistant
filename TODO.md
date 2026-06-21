@@ -91,8 +91,6 @@
 - Add better handling of transcription uncertainty.
 - Add confidence-aware clarification when STT is doubtful.
 - Add alternate-interpretation prompts when the transcript is ambiguous.
-- Add short multi-turn follow-up handling for:
-  - `the second one`
 - Add confirmation flow for risky actions:
   - delete
   - overwrite
@@ -122,11 +120,8 @@
 ### UI And Settings
 
 - Add settings for:
-  - voice style
   - TTS engine
   - push-to-talk
-  - confirmation policy
-  - archive behavior
   - proactive features
 
 
@@ -202,7 +197,7 @@
 ### Model And Retrieval Expansion
 
 - Add richer local reasoning model options.
-- Add model routing later if the small local model is not enough for certain tasks.
+- Refine model-routing heuristics and provider-specific prompts for hybrid local/Gemini QA.
 
 ## Blocked / Depends On
 
@@ -239,6 +234,9 @@
   - `summarize that`
   - `search again`
   - `search again but for today`
+- Ordinal follow-up commands:
+  - `open the second one`
+  - `summarize the second one`
 - Initial clarification and confirmation flow for:
   - missing follow-up context
   - fuzzy app matches
@@ -328,14 +326,28 @@
   - Clickable citation links opening in default browser.
   - Compact chevron collapse/expand affordance.
   - Tray menu item to toggle HUD on/off.
+- Floating HUD, runtime lifecycle pass:
+  - HUD instance now stays wired through app lifetime.
+  - Tray/settings HUD toggle now hides or restores the overlay instead of tearing down the event stream.
+  - Startup with HUD disabled now preserves later enablement cleanly.
 - Regression coverage added for:
   - Real FloatingHud class event queueing and thread-safe behavior.
+  - HUD enabled/disabled state updates.
 - Settings Panel GUI:
   - Styled dark settings window matching HUD styling.
-  - Form fields and sliders for Assistant Name, default location, wake word toggle, wake phrase dropdown, speech rate slider, semantic retrieval toggle, LLM/embedding models, fetch limits, HUD toggle, and follow-up timeout.
+  - Form fields and sliders for Assistant Name, assistant style, default location, wake word toggle, wake cue toggle, wake phrase dropdown, speech rate slider, semantic retrieval toggle, archive toggles, LLM/embedding models, fetch limits, archive recall limit, confirmation policy, HUD toggle, and follow-up timeout.
   - Dynamically saves to settings.json and synchronizes runtime values (TTS speech rate, HUD state, wake word listener) instantly on save.
 - Regression coverage added for:
   - SettingsPanel class initialization and default binding.
+ - Settings runtime sync pass:
+  - assistant style now updates the live LLM prompt tone
+  - confirmation policy now supports `smart` and `always`
+  - web research archive enablement now affects persistence behavior
+  - optional top-source auto-open after web answers is now wired
+  - follow-up timeout, fetch limit, archive mode, and model/style changes now resync into the running assistant
+ - Regression coverage added for:
+  - confirmation-policy forced open-target approval
+  - archive-disabled research behavior
 - Productivity Basics:
   - Reminders, timers, alarms background thread scheduler and filesystem JSON database store in [productivity.py](file:///C:/Users/user/OneDrive/Documents/projects/Desktop%20voice%20assitant/src/desktop_voice_assistant/productivity.py).
   - Queued thread-safe spoken voice alarms and reminders.
@@ -356,7 +368,9 @@
   - Expose formatting method to inject this register directly into the LLM system prompt.
   - Implement LLM route_intent classification method to intelligently fallback and choose paths when regex parsing fails.
   - Regressions test suite coverage.
-
-
-
-
+- Hybrid QA routing:
+  - Simple QA stays on the local Ollama model.
+  - Complex or context-heavy QA can route to Gemini when enabled.
+  - Gemini failures fall back to the local model instead of breaking the request.
+  - Local secret storage added for non-repo API key handling.
+  - Regressions test suite coverage.

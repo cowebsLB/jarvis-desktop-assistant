@@ -8,6 +8,8 @@ from pathlib import Path
 APP_DIR = Path.home() / ".desktop_voice_assistant"
 SETTINGS_PATH = APP_DIR / "settings.json"
 SUPPORTED_WAKE_WORDS = {"alexa", "hey jarvis", "hey mycroft", "hey rhasspy", "timer", "weather"}
+SUPPORTED_ASSISTANT_STYLES = {"stark-butler", "concise", "neutral"}
+SUPPORTED_CONFIRMATION_POLICIES = {"smart", "always"}
 
 
 @dataclass
@@ -19,10 +21,13 @@ class Settings:
     stt_device: str = "cpu"
     stt_compute_type: str = "int8"
     ollama_model: str = "qwen2.5-coder:1.5B"
+    gemini_enabled: bool = False
+    gemini_model: str = "gemini-3.5-flash"
     embedding_model: str = "nomic-embed-text"
     tts_voice_id: str | None = None
     assistant_name: str = "Jarvis"
     assistant_style: str = "stark-butler"
+    confirmation_policy: str = "smart"
     speech_rate: int = 185
     default_location: str = "Beirut, Lebanon"
     web_search_enabled: bool = True
@@ -73,6 +78,10 @@ class Settings:
         settings = cls(**merged)
         if settings.wake_word_phrase.lower() not in SUPPORTED_WAKE_WORDS:
             settings.wake_word_phrase = "hey jarvis"
+        if settings.assistant_style not in SUPPORTED_ASSISTANT_STYLES:
+            settings.assistant_style = defaults.assistant_style
+        if settings.confirmation_policy not in SUPPORTED_CONFIRMATION_POLICIES:
+            settings.confirmation_policy = defaults.confirmation_policy
         if settings.ollama_model == "qwen2.5:1.5b-instruct":
             settings.ollama_model = defaults.ollama_model
         if data.get("stt_model_path") and "stt_model_name" not in data:
