@@ -25,15 +25,18 @@ jobs:
           pip install -e .[dev]
           pip install pyinstaller
 
+      - name: Run tests
+        run: python -m pytest
+
       - name: Build executable
         run: |
-          pyinstaller --onefile --windowed --name Jarvis scripts/jarvis_launcher.py
+          pyinstaller --clean --onefile --windowed --name Jarvis scripts/jarvis_launcher.py
 
-      - name: Zip build
+      - name: Package Windows build
         run: |
-          powershell Compress-Archive -Path dist\Jarvis.exe -DestinationPath dist\Jarvis-windows.zip
+          Compress-Archive -Path dist\Jarvis.exe -DestinationPath dist\Jarvis-windows.zip
 
-      - name: Create release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
