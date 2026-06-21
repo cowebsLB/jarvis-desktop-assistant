@@ -57,6 +57,20 @@ def test_open_target_uses_installed_app_resolution(monkeypatch) -> None:
     assert launched == [(r"C:\Apps\Code.exe", "visual studio code")]
 
 
+def test_launch_target_uses_startfile_for_shortcuts(monkeypatch) -> None:
+    opened: list[str] = []
+    popens: list[list[str]] = []
+
+    monkeypatch.setattr(os, "startfile", lambda target: opened.append(target), raising=False)
+    import subprocess
+    monkeypatch.setattr(subprocess, "Popen", lambda args, shell=False: popens.append(args))
+
+    # Test shortcut path
+    ActionExecutor._launch_target(r"C:\Apps\Discord.lnk", "discord")
+    assert opened == [r"C:\Apps\Discord.lnk"]
+    assert popens == []
+
+
 def test_find_start_menu_shortcut_matches_target(monkeypatch, tmp_path: Path) -> None:
     appdata = tmp_path / "AppData"
     start_menu = appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs"

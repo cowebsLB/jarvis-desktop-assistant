@@ -103,7 +103,7 @@ class TrayApplication:
             is_followup = (
                 text_input is None
                 and result is not None
-                and result.success
+                and (result.success or self.assistant.runtime_state in {RuntimeState.AWAITING_CONFIRMATION, RuntimeState.CLARIFYING})
                 and self.assistant.runtime_state in {
                     RuntimeState.AWAITING_CONFIRMATION,
                     RuntimeState.CLARIFYING,

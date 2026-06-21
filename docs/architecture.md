@@ -56,11 +56,10 @@ It now also has a floating HUD layer that reflects wake, capture, processing, an
   - enforces configurable confirmation policy for supported actions
 
 - `hud.py`
-  - draggable always-on-top floating orb
+  - borderless transparent always-on-top floating orb overlay
   - pulse animation by assistant state
-  - transcript / intent / reply bubble rendering
-  - plan steps, research progress, citation, and recent-history display
-  - inline confirmation buttons and text follow-up entry
+  - fading, dynamically auto-sized rounded glassmorphic speech bubble
+  - inline confirmation buttons and text input for clarification
   - runtime hide/show without destroying assistant state flow
   - persisted HUD position through settings
 

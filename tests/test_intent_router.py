@@ -185,6 +185,16 @@ def test_route_notepad_write_and_save() -> None:
     assert result.slots["text"] == "log entries"
     assert result.slots["filename"] == "work log"
 
+    result = IntentRouter().route("open notepad and type hello word in it")
+    assert result.intent == "notepad_write_and_save"
+    assert result.slots["text"] == "hello word"
+    assert result.slots["filename"] == "notes.txt"
+
+    result = IntentRouter().route("type hello word in notepad")
+    assert result.intent == "notepad_write_and_save"
+    assert result.slots["text"] == "hello word"
+    assert result.slots["filename"] == "notes.txt"
+
 
 def test_route_browser_search_and_bookmark() -> None:
     result = IntentRouter().route("search for python testing and bookmark it")

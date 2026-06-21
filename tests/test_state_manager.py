@@ -39,3 +39,15 @@ def test_state_manager_allows_research_early_exit_to_speaking() -> None:
     manager.transition(RuntimeState.SPEAKING)
 
     assert manager.current == RuntimeState.SPEAKING
+
+
+def test_state_manager_allows_confirmation_and_clarification_reset_to_wake_listening() -> None:
+    # AWAITING_CONFIRMATION -> WAKE_LISTENING
+    manager1 = StateManager(RuntimeState.AWAITING_CONFIRMATION)
+    manager1.transition(RuntimeState.WAKE_LISTENING)
+    assert manager1.current == RuntimeState.WAKE_LISTENING
+
+    # CLARIFYING -> WAKE_LISTENING
+    manager2 = StateManager(RuntimeState.CLARIFYING)
+    manager2.transition(RuntimeState.WAKE_LISTENING)
+    assert manager2.current == RuntimeState.WAKE_LISTENING

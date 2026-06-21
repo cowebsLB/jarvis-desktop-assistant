@@ -100,6 +100,10 @@ class IntentRouter:
             return IntentResult("notepad_write_and_save", 0.95, {"text": match.group(1).strip(), "filename": match.group(2).strip()})
         if match := re.search(r"\bwrite\s+and\s+save\s+(.+?)\s+as\s+(.+?)\s+in\s+notepad\b", normalized):
             return IntentResult("notepad_write_and_save", 0.95, {"text": match.group(1).strip(), "filename": match.group(2).strip()})
+        if match := re.search(r"\bopen\s+notepad\s+and\s+(?:type|write)\s+(.+?)(?:\s+in\s+it)?$", normalized):
+            return IntentResult("notepad_write_and_save", 0.95, {"text": match.group(1).strip(), "filename": "notes.txt"})
+        if match := re.search(r"\b(?:type|write)\s+(.+?)\s+in\s+notepad(?:\s+and\s+save)?$", normalized):
+            return IntentResult("notepad_write_and_save", 0.95, {"text": match.group(1).strip(), "filename": "notes.txt"})
 
         # Browser Search and Bookmark
         if match := re.search(r"\bsearch\s+(?:the\s+)?(?:browser|web|internet)\s+for\s+(.+?)\s+and\s+bookmark\s*(?:the\s+)?(?:page|it)?\b", normalized):

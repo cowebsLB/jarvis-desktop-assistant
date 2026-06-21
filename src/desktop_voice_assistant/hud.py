@@ -4,7 +4,6 @@ import logging
 import math
 import queue
 import threading
-import webbrowser
 import tkinter as tk
 from typing import Any
 from PIL import Image, ImageDraw, ImageTk
@@ -15,7 +14,6 @@ from .models import RuntimeState, ResearchSource
 LOGGER = logging.getLogger(__name__)
 
 STATE_COLORS = {
-    # state: (primary_hex, glow_hex)
     "booting": ("#38BDF8", "#0284C7"),
     "idle": ("#38BDF8", "#0284C7"),
     "wake_listening": ("#38BDF8", "#0284C7"),
@@ -57,18 +55,19 @@ class FloatingHud:
         self.slots: dict[str, str] = {}
         self.reply: str = ""
         self.sources: list[ResearchSource] = []
-        self.history_events: list[dict[str, Any]] = []
 
         # UI state
-        self.expanded: bool = True
         self.drag_data: dict[str, int] = {"x": 0, "y": 0}
         self.pulse_phase: float = 0.0
         self.wake_pulse_active: bool = False
         self.wake_pulse_radius: float = 0.0
         self.orb_items: dict[str, Any] = {}
-
-        # Load initial history
-        self.history_events = self._load_recent_history()
+        self.bubble_alpha: float = 0.0
+        self.bubble_target_alpha: float = 0.0
+        self.fade_active: bool = False
+        self.yes_btn: tk.Button | None = None
+        self.no_btn: tk.Button | None = None
+        self.input_entry: tk.Entry | None = None
 
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
@@ -104,7 +103,7 @@ class FloatingHud:
         self.queue.put(lambda: self._ui_result(reply, success, sources))
 
     def on_history_event(self, record: dict[str, Any]) -> None:
-        self.queue.put(lambda: self._ui_history_event(record))
+        self.queue.put(lambda: None)
 
     # --- Thread-Safe UI Update Helpers ---
 
@@ -115,11 +114,6 @@ class FloatingHud:
     def _ui_state_change(self, state: RuntimeState, reason: str | None) -> None:
         self.state = state
         self.reason = reason
-        # Auto-expand detail view when active work starts
-        state_val = state.value if hasattr(state, "value") else str(state)
-        if state_val not in ["idle", "wake_listening", "suspended"] and not self.expanded:
-            self.expanded = True
-            self._update_window_size()
         self._refresh_hud()
 
     def _ui_transcript(self, transcript: str) -> None:
@@ -135,12 +129,6 @@ class FloatingHud:
         self.reply = reply or ""
         self.sources = sources or []
         self._refresh_hud()
-
-    def _ui_history_event(self, record: dict[str, Any]) -> None:
-        self.history_events.append(record)
-        if len(self.history_events) > 8:
-            self.history_events.pop(0)
-        self._refresh_history_ui()
 
     def _ui_set_enabled(self, enabled: bool) -> None:
         self._enabled = enabled
@@ -161,7 +149,7 @@ class FloatingHud:
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.96)
-        self.root.configure(bg="#0B0F19")
+        self.root.configure(bg="#000001")
 
         # Geometry
         x = self.settings.hud_position_x
@@ -177,7 +165,7 @@ class FloatingHud:
 
         # Build UI Elements
         self._create_widgets()
-        self._update_window_size()
+        self._set_window_size(expanded=False)
 
         # Start loops
         self._check_queue()
@@ -188,214 +176,77 @@ class FloatingHud:
         self.root = None
         self.thread = None
 
-    def _create_card(self, parent: tk.Widget, title: str, title_color: str) -> tuple[tk.Frame, tk.Frame]:
-        card = tk.Frame(
-            parent,
-            bg="#131E35",
-            highlightthickness=1,
-            highlightbackground="#1E2E4A",
-            bd=0
-        )
-        title_lbl = tk.Label(
-            card,
-            text=title,
-            font=("Consolas", 8, "bold"),
-            fg=title_color,
-            bg="#131E35",
-            anchor="w"
-        )
-        title_lbl.pack(fill="x", padx=8, pady=(4, 2))
-        sep = tk.Frame(card, height=1, bg="#1E2E4A")
-        sep.pack(fill="x", padx=6, pady=(0, 4))
-        inner = tk.Frame(card, bg="#131E35")
-        inner.pack(fill="both", expand=True, padx=8, pady=(0, 6))
-        return card, inner
-
     def _create_widgets(self) -> None:
         if not self.root:
             return
 
-        # Top Bar Frame (Contains Orb, Status, Chevron)
-        self.top_frame = tk.Frame(self.root, bg="#0B0F19", cursor="fleur")
-        self.top_frame.pack(fill="x", side="top")
-        self.top_frame.bind("<Button-1>", self._on_drag_start)
-        self.top_frame.bind("<B1-Motion>", self._on_drag_motion)
-        self.top_frame.bind("<ButtonRelease-1>", self._on_drag_release)
+        # Make the window background transparent by setting -transparentcolor to #000001
+        self.root.configure(bg="#000001")
+        self.root.wm_attributes("-transparentcolor", "#000001")
 
-        # Glowing Orb Canvas
-        self.canvas = tk.Canvas(self.top_frame, width=60, height=60, bg="#0B0F19", highlightthickness=0)
+        # Main horizontal container frame (transparent)
+        self.main_frame = tk.Frame(self.root, bg="#000001")
+        self.main_frame.pack(fill="both", expand=True)
+
+        # Left Side: Animated Orb Canvas (transparent bg)
+        self.canvas = tk.Canvas(self.main_frame, width=60, height=60, bg="#000001", highlightthickness=0)
         self.canvas.pack(side="left", padx=5, pady=5)
         self.canvas.bind("<Button-1>", self._on_drag_start)
         self.canvas.bind("<B1-Motion>", self._on_drag_motion)
         self.canvas.bind("<ButtonRelease-1>", self._on_drag_release)
 
-        # Initialize the persistent canvas items to avoid recreate stuttering
+        # Initialize the persistent canvas image items
         self._initialize_orb_graphics()
 
-        # Status Label
-        self.status_lbl = tk.Label(
-            self.top_frame,
-            text="Jarvis: Idle",
-            font=("Segoe UI", 10, "bold"),
-            fg="#38BDF8",
-            bg="#0B0F19",
-            anchor="w"
-        )
-        self.status_lbl.pack(side="left", fill="x", expand=True, padx=5)
-        self.status_lbl.bind("<Button-1>", self._on_drag_start)
-        self.status_lbl.bind("<B1-Motion>", self._on_drag_motion)
-        self.status_lbl.bind("<ButtonRelease-1>", self._on_drag_release)
+        # Right Side: Attached Speech Bubble Frame (transparent container)
+        self.bubble_frame = tk.Frame(self.main_frame, bg="#000001")
 
-        # Expand/Collapse Chevron Button
-        self.expand_btn = tk.Button(
-            self.top_frame,
-            text="▲",
-            font=("Segoe UI", 9, "bold"),
-            fg="#64748B",
-            bg="#0B0F19",
-            activeforeground="#F1F5F9",
-            activebackground="#131E35",
-            bd=0,
-            relief="flat",
-            padx=10,
-            command=self._toggle_expand
-        )
-        self.expand_btn.pack(side="right", fill="y", padx=5)
-        self.expand_btn.bind("<Enter>", lambda e: self.expand_btn.config(fg="#F1F5F9", bg="#131E35"))
-        self.expand_btn.bind("<Leave>", lambda e: self.expand_btn.config(fg="#64748B", bg="#0B0F19"))
+        # Canvas for speech bubble background
+        self.bubble_canvas = tk.Canvas(self.bubble_frame, bg="#000001", highlightthickness=0)
+        self.bubble_canvas.pack(fill="both", expand=True)
+        self.bubble_canvas.bind("<Button-1>", self._on_drag_start)
+        self.bubble_canvas.bind("<B1-Motion>", self._on_drag_motion)
+        self.bubble_canvas.bind("<ButtonRelease-1>", self._on_drag_release)
 
-        # Details Panel Container (Packed when expanded)
-        self.details_frame = tk.Frame(self.root, bg="#0B0F19")
-        
-        # 1. Transcript Card
-        self.transcript_card, self.transcript_inner = self._create_card(self.details_frame, "[ USER COMMAND ]", "#38BDF8")
-        self.transcript_card.pack(fill="x", pady=4, padx=2)
-        
-        self.transcript_lbl = tk.Label(
-            self.transcript_inner,
-            text="(Waiting for command...)",
-            font=("Segoe UI", 9, "italic"),
-            fg="#E2E8F0",
-            bg="#131E35",
-            justify="left",
-            anchor="w",
-            wraplength=320
-        )
-        self.transcript_lbl.pack(fill="x", pady=2)
+        # Empty background image item
+        self.bg_image_item = self.bubble_canvas.create_image(0, 0, anchor="nw")
 
-        self.intent_lbl = tk.Label(
-            self.transcript_inner,
-            text="INTENT: None",
-            font=("Consolas", 8, "bold"),
-            fg="#94A3B8",
-            bg="#131E35",
-            anchor="w"
-        )
-        self.intent_lbl.pack(fill="x", pady=(4, 0))
+        # Inner Frame for content (with solid background color matching rounded rect fill)
+        self.inner_bubble_frame = tk.Frame(self.bubble_canvas, bg="#1E293B")
+        self.inner_window = self.bubble_canvas.create_window(8, 8, window=self.inner_bubble_frame, anchor="nw")
 
-        # 2. Plan & Progress Section
-        self.steps_card, self.steps_inner_frame = self._create_card(self.details_frame, "[ PROCESS RUNTIME ]", "#38BDF8")
-        self.steps_card.pack(fill="x", pady=4, padx=2)
-
-        # 3. Citations Section
-        self.citations_card, self.citations_inner_frame = self._create_card(self.details_frame, "[ RESEARCH SOURCES ]", "#A855F7")
-        self.citations_card.pack(fill="x", pady=4, padx=2)
-
-        # 4. Confirmation Panel (Yes / No + typed follow-up)
-        self.confirmation_card, self.confirmation_inner = self._create_card(self.details_frame, "[ USER CONFIRMATION ]", "#F97316")
-        
-        self.confirmation_lbl = tk.Label(
-            self.confirmation_inner,
-            text="Are you sure?",
+        self.bubble_lbl = tk.Label(
+            self.inner_bubble_frame,
+            text="",
             font=("Segoe UI", 9),
             fg="#F1F5F9",
-            bg="#131E35",
-            wraplength=320,
-            justify="center"
+            bg="#1E293B",
+            justify="left",
+            anchor="w",
+            wraplength=260
         )
-        self.confirmation_lbl.pack(fill="x", pady=4)
-        
-        self.buttons_frame = tk.Frame(self.confirmation_inner, bg="#131E35")
-        self.buttons_frame.pack(pady=4)
-        
-        self.yes_btn = tk.Button(
-            self.buttons_frame,
-            text="Confirm [Yes]",
-            font=("Segoe UI", 9, "bold"),
-            fg="#F1F5F9",
-            bg="#22C55E",
-            activebackground="#16A34A",
-            activeforeground="#F1F5F9",
-            bd=0,
-            width=14,
-            pady=4,
-            command=self._confirm_yes
-        )
-        self.yes_btn.pack(side="left", padx=10)
-        
-        self.no_btn = tk.Button(
-            self.buttons_frame,
-            text="Cancel [No]",
-            font=("Segoe UI", 9, "bold"),
-            fg="#F1F5F9",
-            bg="#EF4444",
-            activebackground="#DC2626",
-            activeforeground="#F1F5F9",
-            bd=0,
-            width=14,
-            pady=4,
-            command=self._confirm_no
-        )
-        self.no_btn.pack(side="left", padx=10)
+        self.bubble_lbl.pack(fill="both", expand=True, padx=8, pady=(4, 2))
 
-        # 5. Recent History Section
-        self.history_card, self.history_inner_frame = self._create_card(self.details_frame, "[ SYSTEM LOGS ]", "#10B981")
-        self.history_card.pack(fill="x", pady=4, padx=2)
+        # Dynamic Actions sub-frame for confirmations or typing clarifications
+        self.action_frame = tk.Frame(self.inner_bubble_frame, bg="#1E293B")
 
-        # 6. Text Follow-up Entry Console
-        self.entry_card, self.entry_inner = self._create_card(self.details_frame, "[ INTERACTION CONSOLE ]", "#38BDF8")
-        self.entry_card.pack(fill="x", side="bottom", pady=4, padx=2)
-        
-        self.input_entry = tk.Entry(
-            self.entry_inner,
-            font=("Consolas", 9),
-            fg="#F1F5F9",
-            bg="#0B0F19",
-            insertbackground="#F1F5F9",
-            bd=0,
-            highlightthickness=1,
-            highlightbackground="#1E2E4A",
-            highlightcolor="#38BDF8"
-        )
-        self.input_entry.pack(fill="x", ipady=4, padx=2, pady=2)
-        self.input_entry.bind("<Return>", self._submit_typed_text)
-        
-        # Add a subtle placeholder
-        self.input_entry.insert(0, "Type follow-up & press Enter...")
-        self.input_entry.bind("<FocusIn>", self._clear_placeholder)
-        self.input_entry.bind("<FocusOut>", self._add_placeholder)
+        # Bind configure for dynamic auto-resizing
+        self.inner_bubble_frame.bind("<Configure>", self._on_bubble_configure)
 
-        # First paint
-        self._refresh_hud()
-        self._refresh_history_ui()
-
-    def _toggle_expand(self) -> None:
-        self.expanded = not self.expanded
-        self._update_window_size()
-
-    def _update_window_size(self) -> None:
+    def _set_window_size(self, expanded: bool, state_val: str = "") -> None:
         if not self.root:
             return
         x = self.root.winfo_x()
         y = self.root.winfo_y()
-        if self.expanded:
-            self.details_frame.pack(fill="both", expand=True, padx=8, pady=5)
-            self.root.geometry(f"360x560+{x}+{y}")
-            self.expand_btn.config(text="▲")
+        if x <= 0 or y <= 0:
+            x = self.settings.hud_position_x or 100
+            y = self.settings.hud_position_y or 100
+
+        if expanded:
+            # Sizing is dynamically driven by _on_bubble_configure
+            pass
         else:
-            self.details_frame.pack_forget()
-            self.root.geometry(f"280x60+{x}+{y}")
-            self.expand_btn.config(text="▼")
+            self.root.geometry(f"70x70+{x}+{y}")
 
     def _refresh_hud(self) -> None:
         if not self.root:
@@ -404,208 +255,112 @@ class FloatingHud:
             return
 
         state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
-        # Update Status Text
-        status_text = f"Jarvis: {state_val.replace('_', ' ').title()}"
-        self.status_lbl.config(text=status_text)
-        
-        # Apply theme color to Status text based on state
-        state_color = STATE_COLORS.get(state_val, ("#38BDF8", "#0284C7"))[0]
-        self.status_lbl.config(fg=state_color)
 
-        # Update Transcript Bubble
-        if self.transcript:
-            self.transcript_lbl.config(text=self.transcript, font=("Segoe UI", 9, "normal"))
+        # Show bubble for active states
+        show_bubble = state_val not in ["idle", "suspended"]
+
+        if show_bubble:
+            text = ""
+            if state_val == "wake_listening":
+                text = "Listening..."
+            elif state_val in ["capturing_command", "transcribing"]:
+                text = self.transcript or "Listening..."
+            elif state_val in [
+                "understanding", "planning", "researching", "fetching_sources",
+                "ranking_sources", "summarizing_sources", "archiving_sources"
+            ]:
+                text = "Thinking..."
+            elif state_val == "executing":
+                text = "Executing..."
+            elif state_val == "awaiting_confirmation":
+                text = self.reason or "Confirmation required."
+            elif state_val == "clarifying":
+                text = self.reason or "Clarification required."
+            elif state_val in ["speaking", "awaiting_followup"]:
+                text = self.reply or self.transcript or "Speaking..."
+            elif state_val == "error":
+                text = self.reason or "An error occurred."
+            else:
+                text = "Idle"
+
+            self.bubble_lbl.config(text=text)
+            self._update_actions_ui(state_val)
+
+            if not self.bubble_frame.winfo_manager():
+                self.bubble_frame.pack(side="left", fill="both", expand=True, padx=(0, 5), pady=5)
+                if self.bubble_alpha == 0.0:
+                    self.bubble_alpha = 0.0
+
+            self.bubble_target_alpha = 1.0
+            if not getattr(self, "fade_active", False):
+                self._animate_bubble_fade()
         else:
-            self.transcript_lbl.config(text="(Waiting for command...)", font=("Segoe UI", 9, "italic"))
+            self.bubble_target_alpha = 0.0
+            if not getattr(self, "fade_active", False):
+                self._animate_bubble_fade()
 
-        # Update Intent Label
-        intent_text = f"Intent: {self.intent.replace('_', ' ').title() if self.intent else 'None'}"
-        if self.slots:
-            slots_str = ", ".join(f"{k}={v}" for k, v in self.slots.items())
-            intent_text += f" ({slots_str})"
-        self.intent_lbl.config(text=intent_text)
-
-        # Update planned steps list
-        self._refresh_progress_ui()
-
-        # Update citations
-        self._refresh_citations_ui()
-
-        # Update confirmation panel
-        self._refresh_confirmation_ui()
-
-    def _refresh_progress_ui(self) -> None:
-        if not self.root:
-            return
-        if not self._enabled:
-            return
-        for w in self.steps_inner_frame.winfo_children():
+    def _update_actions_ui(self, state_val: str) -> None:
+        for w in self.action_frame.winfo_children():
             w.destroy()
 
-        steps = self._get_steps_for_state()
-        for label_text, status in steps:
-            icon = " "
-            status_text = "PENDING"
-            color = "#64748B"  # pending gray
-            
-            if status == "active":
-                color = "#38BDF8"  # active sky blue
-                status_text = "RUNNING"
-                icon = "▶"
-            elif status == "done":
-                color = "#E2E8F0"  # done text
-                status_text = "DONE"
-                icon = "✓"
+        self.yes_btn = None
+        self.no_btn = None
+        self.input_entry = None
 
-            left_part = f"{icon} {label_text} "
-            dot_count = max(1, 30 - len(left_part))
-            full_line = f"{left_part}{'.' * dot_count} [{status_text}]"
+        if state_val == "awaiting_confirmation":
+            self.action_frame.pack(fill="x", side="bottom", padx=8, pady=(0, 4))
 
-            lbl = tk.Label(
-                self.steps_inner_frame,
-                text=full_line,
-                font=("Consolas", 8, "bold" if status == "active" else "normal"),
-                fg=color,
-                bg="#131E35",
-                anchor="w",
-                justify="left"
-            )
-            lbl.pack(fill="x", pady=1)
-
-    def _get_steps_for_state(self) -> list[tuple[str, str]]:
-        state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
-        
-        # Decide status mapping
-        capture_status = "pending"
-        routing_status = "pending"
-        exec_status = "pending"
-        speak_status = "pending"
-
-        if state_val in ["capturing_command", "transcribing"]:
-            capture_status = "active"
-        elif state_val in ["understanding", "planning", "clarifying", "researching", "fetching_sources", "ranking_sources", "summarizing_sources", "archiving_sources", "awaiting_confirmation", "executing", "speaking", "awaiting_followup", "idle"]:
-            capture_status = "done"
-
-        if state_val in ["understanding", "planning"]:
-            routing_status = "active"
-        elif state_val in ["clarifying", "researching", "fetching_sources", "ranking_sources", "summarizing_sources", "archiving_sources", "awaiting_confirmation", "executing", "speaking", "awaiting_followup"]:
-            routing_status = "done"
-
-        is_research = state_val in ["researching", "fetching_sources", "ranking_sources", "summarizing_sources", "archiving_sources"] or (self.intent in ["web_search", "qa"] and state_val != "idle")
-        
-        if state_val in ["executing", "researching", "fetching_sources", "ranking_sources", "summarizing_sources", "archiving_sources", "clarifying", "awaiting_confirmation"]:
-            exec_status = "active"
-        elif state_val in ["speaking", "awaiting_followup"]:
-            exec_status = "done"
-
-        if state_val in ["speaking"]:
-            speak_status = "active"
-        elif state_val in ["awaiting_followup"]:
-            speak_status = "done"
-
-        steps = [
-            ("Capture Speech", capture_status),
-            ("Analyze Intent", routing_status),
-        ]
-
-        if is_research:
-            steps.append(("Web Search Initiated", "done" if state_val != "researching" else "active"))
-            steps.append(("Fetch Web Pages", "active" if state_val == "fetching_sources" else ("done" if state_val in ["ranking_sources", "summarizing_sources", "archiving_sources", "speaking", "awaiting_followup"] else "pending")))
-            steps.append(("Rank & Extract Evidence", "active" if state_val == "ranking_sources" else ("done" if state_val in ["summarizing_sources", "archiving_sources", "speaking", "awaiting_followup"] else "pending")))
-            steps.append(("Summarize Findings", "active" if state_val == "summarizing_sources" else ("done" if state_val in ["archiving_sources", "speaking", "awaiting_followup"] else "pending")))
-        else:
-            steps.append(("Execute Desktop Action", exec_status))
-
-        steps.append(("Speak Response", speak_status))
-        return steps
-
-    def _refresh_citations_ui(self) -> None:
-        if not self.root:
-            return
-        if not self._enabled:
-            return
-        for w in self.citations_inner_frame.winfo_children():
-            w.destroy()
-
-        if not self.sources:
-            lbl = tk.Label(
-                self.citations_inner_frame,
-                text="No research sources cited for this query.",
-                font=("Consolas", 8, "italic"),
-                fg="#64748B",
-                bg="#131E35",
-                anchor="w"
-            )
-            lbl.pack(fill="x", pady=4)
-            return
-
-        for idx, src in enumerate(self.sources[:3]):
-            title = src.title if hasattr(src, "title") else src.get("title", f"Source {idx+1}")
-            url = src.url if hasattr(src, "url") else src.get("url", "#")
-            
-            lbl = tk.Label(
-                self.citations_inner_frame,
-                text=f"[{idx+1}] {title}",
-                font=("Consolas", 8),
-                fg="#D8B4FE",  # Lavender/Purple links
-                bg="#131E35",
+            self.yes_btn = tk.Button(
+                self.action_frame,
+                text="Yes",
+                font=("Segoe UI Semibold", 8, "bold"),
+                fg="#F1F5F9",
+                bg="#22C55E",
+                activebackground="#16A34A",
+                activeforeground="#F1F5F9",
+                bd=0,
+                padx=10,
+                pady=2,
                 cursor="hand2",
-                anchor="w",
-                justify="left",
-                wraplength=310
+                command=self._confirm_yes
             )
-            lbl.pack(fill="x", pady=2)
-            self._bind_clickable_link(lbl, url)
+            self.yes_btn.pack(side="left", padx=2)
 
-    def _bind_clickable_link(self, label: tk.Label, url: str) -> None:
-        label.bind("<Button-1>", lambda e: webbrowser.open(url))
-        label.bind("<Enter>", lambda e: label.config(font=("Consolas", 8, "underline"), fg="#F472B6"))  # Pink glow highlight
-        label.bind("<Leave>", lambda e: label.config(font=("Consolas", 8), fg="#D8B4FE"))
+            self.no_btn = tk.Button(
+                self.action_frame,
+                text="No",
+                font=("Segoe UI Semibold", 8, "bold"),
+                fg="#F1F5F9",
+                bg="#EF4444",
+                activebackground="#DC2626",
+                activeforeground="#F1F5F9",
+                bd=0,
+                padx=10,
+                pady=2,
+                cursor="hand2",
+                command=self._confirm_no
+            )
+            self.no_btn.pack(side="left", padx=2)
 
-    def _refresh_confirmation_ui(self) -> None:
-        state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
-        if state_val in ["awaiting_confirmation", "clarifying"]:
-            self.confirmation_card.pack(fill="x", pady=4, padx=2)
-            prompt = self.reason or "Jarvis requires confirmation for this action."
-            self.confirmation_lbl.config(text=prompt)
+        elif state_val == "clarifying":
+            self.action_frame.pack(fill="x", side="bottom", padx=8, pady=(0, 4))
+
+            self.input_entry = tk.Entry(
+                self.action_frame,
+                font=("Consolas", 9),
+                fg="#F1F5F9",
+                bg="#0B0F19",
+                insertbackground="#F1F5F9",
+                bd=0,
+                highlightthickness=1,
+                highlightbackground="#334155",
+                highlightcolor="#38BDF8"
+            )
+            self.input_entry.pack(fill="x", ipady=2)
+            self.input_entry.bind("<Return>", self._submit_typed_text)
+            self.input_entry.focus_set()
         else:
-            self.confirmation_card.pack_forget()
-
-    def _refresh_history_ui(self) -> None:
-        if not self.root:
-            return
-        if not self._enabled:
-            return
-        for w in self.history_inner_frame.winfo_children():
-            w.destroy()
-
-        if not self.history_events:
-            lbl = tk.Label(
-                self.history_inner_frame,
-                text="No recent assistant logs found.",
-                font=("Consolas", 8, "italic"),
-                fg="#64748B",
-                bg="#131E35",
-                anchor="w"
-            )
-            lbl.pack(fill="x", pady=4)
-            return
-
-        for record in reversed(self.history_events[-4:]):
-            summary = record.get("summary") or record.get("kind", "Interaction event")
-            lbl = tk.Label(
-                self.history_inner_frame,
-                text=f"» {summary}",
-                font=("Consolas", 8),
-                fg="#34D399",  # Mint green
-                bg="#131E35",
-                anchor="w",
-                justify="left",
-                wraplength=310
-            )
-            lbl.pack(fill="x", pady=1)
-
-    # --- Actions Handling ---
+            self.action_frame.pack_forget()
 
     def _confirm_yes(self) -> None:
         if self.on_submit_text:
@@ -617,18 +372,132 @@ class FloatingHud:
 
     def _submit_typed_text(self, event: tk.Event) -> None:
         text = self.input_entry.get().strip()
-        if not text or text == "Type follow-up & press Enter...":
+        if not text:
             return
         self.input_entry.delete(0, tk.END)
         if self.on_submit_text:
             self.on_submit_text(text)
 
-    def _clear_placeholder(self, event: tk.Event) -> None:
-        if self.input_entry.get() == "Type follow-up & press Enter...":
-            self.input_entry.delete(0, tk.END)
-    def _add_placeholder(self, event: tk.Event) -> None:
-        if not self.input_entry.get():
-            self.input_entry.insert(0, "Type follow-up & press Enter...")
+    # --- Speech Bubble Sizing & Fade Effects ---
+
+    def _on_bubble_configure(self, event: tk.Event) -> None:
+        if not self.root:
+            return
+        w = event.width
+        h = event.height
+        canvas_w = w + 16
+        canvas_h = h + 16
+
+        self.bubble_canvas.config(width=canvas_w, height=canvas_h)
+        self._redraw_bubble_graphics()
+
+        # Update dynamic window geometry size
+        x = self.root.winfo_x()
+        y = self.root.winfo_y()
+        if x <= 0 or y <= 0:
+            x = self.settings.hud_position_x or 100
+            y = self.settings.hud_position_y or 100
+
+        total_w = 70 + canvas_w
+        total_h = max(70, canvas_h)
+        self.root.geometry(f"{total_w}x{total_h}+{x}+{y}")
+
+    def _get_bubble_bg(self, width: int, height: int, radius: int, bg_color: str, border_color: str, alpha_mult: float) -> ImageTk.PhotoImage:
+        scale = 3
+        w_scaled, h_scaled = width * scale, height * scale
+        r_scaled = radius * scale
+
+        img = Image.new("RGBA", (w_scaled, h_scaled), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        bg_rgba = self._hex_to_rgba(bg_color, int(220 * alpha_mult))
+        border_rgba = self._hex_to_rgba(border_color, int(255 * alpha_mult))
+
+        draw.rounded_rectangle(
+            [0, 0, w_scaled - 1, h_scaled - 1],
+            radius=r_scaled,
+            fill=bg_rgba,
+            outline=border_rgba,
+            width=2 * scale
+        )
+
+        resized = img.resize((width, height), Image.Resampling.LANCZOS)
+        return ImageTk.PhotoImage(resized)
+
+    def _interpolate_color(self, color_start: str, color_end: str, factor: float) -> str:
+        c_start = self._hex_to_rgba(color_start)
+        c_end = self._hex_to_rgba(color_end)
+
+        r = int(c_start[0] + (c_end[0] - c_start[0]) * factor)
+        g = int(c_start[1] + (c_end[1] - c_start[1]) * factor)
+        b = int(c_start[2] + (c_end[2] - c_start[2]) * factor)
+
+        return f"#{r:02X}{g:02X}{b:02X}"
+
+    def _animate_bubble_fade(self) -> None:
+        if not self.root:
+            self.fade_active = False
+            return
+
+        fade_speed = 0.15
+        diff = self.bubble_target_alpha - self.bubble_alpha
+
+        if abs(diff) > 0.01:
+            self.fade_active = True
+            if diff > 0:
+                self.bubble_alpha = min(1.0, self.bubble_alpha + fade_speed)
+            else:
+                self.bubble_alpha = max(0.0, self.bubble_alpha - fade_speed)
+
+            self._redraw_bubble_graphics()
+            self.root.after(20, self._animate_bubble_fade)
+        else:
+            self.bubble_alpha = self.bubble_target_alpha
+            self._redraw_bubble_graphics()
+            self.fade_active = False
+
+            if self.bubble_alpha == 0.0:
+                self.bubble_frame.pack_forget()
+                self._set_window_size(expanded=False)
+
+    def _redraw_bubble_graphics(self) -> None:
+        if not self.root or not self.bubble_canvas:
+            return
+
+        canvas_w = self.bubble_canvas.winfo_width()
+        canvas_h = self.bubble_canvas.winfo_height()
+
+        if canvas_w <= 1 or canvas_h <= 1:
+            canvas_w = self.bubble_canvas.winfo_reqwidth()
+            canvas_h = self.bubble_canvas.winfo_reqheight()
+            if canvas_w <= 1 or canvas_h <= 1:
+                return
+
+        self.bubble_photo = self._get_bubble_bg(
+            canvas_w, canvas_h, radius=12, bg_color="#1E293B", border_color="#334155", alpha_mult=self.bubble_alpha
+        )
+        self.bubble_canvas.itemconfig(self.bg_image_item, image=self.bubble_photo)
+
+        # Fading text colors
+        text_fg = self._interpolate_color("#1E293B", "#F1F5F9", self.bubble_alpha)
+        self.bubble_lbl.config(fg=text_fg)
+
+        # Fade active interaction elements if present
+        if getattr(self, "yes_btn", None) and self.yes_btn.winfo_exists():
+            yes_bg = self._interpolate_color("#1E293B", "#22C55E", self.bubble_alpha)
+            yes_fg = self._interpolate_color("#1E293B", "#F1F5F9", self.bubble_alpha)
+            self.yes_btn.config(bg=yes_bg, fg=yes_fg)
+
+        if getattr(self, "no_btn", None) and self.no_btn.winfo_exists():
+            no_bg = self._interpolate_color("#1E293B", "#EF4444", self.bubble_alpha)
+            no_fg = self._interpolate_color("#1E293B", "#F1F5F9", self.bubble_alpha)
+            self.no_btn.config(bg=no_bg, fg=no_fg)
+
+        if getattr(self, "input_entry", None) and self.input_entry.winfo_exists():
+            entry_bg = self._interpolate_color("#1E293B", "#0B0F19", self.bubble_alpha)
+            entry_fg = self._interpolate_color("#1E293B", "#F1F5F9", self.bubble_alpha)
+            entry_border = self._interpolate_color("#1E293B", "#334155", self.bubble_alpha)
+            self.input_entry.config(bg=entry_bg, fg=entry_fg, highlightbackground=entry_border)
 
     # --- Glowing Orb Animation ---
 
@@ -666,13 +535,11 @@ class FloatingHud:
         cx, cy = 90, 90
         r_base = 27
 
-        # Create transparent base image (scaled to 180x180 for 3x supersampling)
         img = Image.new("RGBA", (180, 180), (0, 0, 0, 0))
 
         primary_rgba = self._hex_to_rgba(primary_hex, 255)
         glow_rgba = self._hex_to_rgba(glow_hex, 255)
 
-        # Compositing drawing helpers
         def draw_translucent_ellipse(image, center, radius, fill_color):
             if fill_color[3] == 0:
                 return image
@@ -699,7 +566,7 @@ class FloatingHud:
             draw.line(coords, fill=fill_color, width=width)
             return Image.alpha_composite(image, overlay)
 
-        # 1. Update glow rings (morphing outer rings)
+        # 1. Update glow rings
         for i in range(3):
             r = (r_base + (3 - i) * 10.5) * scale
             alpha = int((i + 1) * 35)
@@ -751,12 +618,10 @@ class FloatingHud:
                 pulse_rgba = (56, 189, 248, int(fade * 255))
                 img = draw_translucent_arc(img, (cx, cy), self.wake_pulse_radius, 0, 360, pulse_rgba, width=6)
 
-        # Downscale via LANCZOS for high quality anti-aliasing
         resized_img = img.resize((60, 60), Image.Resampling.LANCZOS)
         self.orb_photo = ImageTk.PhotoImage(resized_img)
         self.canvas.itemconfig(self.orb_image_item, image=self.orb_photo)
 
-        # Re-schedule at 16ms
         self.root.after(16, self.animate_orb)
 
     # --- Window Drag-and-Drop Handlers ---
@@ -772,11 +637,23 @@ class FloatingHud:
             return
         new_x = self.root.winfo_x() + delta_x
         new_y = self.root.winfo_y() + delta_y
-        
-        width = 360 if self.expanded else 280
-        height = 560 if self.expanded else 60
+
+        state_val = self.state.value if hasattr(self.state, "value") else str(self.state)
+        show_bubble = state_val not in ["idle", "suspended"]
+        if show_bubble:
+            canvas_w = self.bubble_canvas.winfo_width()
+            canvas_h = self.bubble_canvas.winfo_height()
+            if canvas_w <= 1:
+                canvas_w = self.bubble_canvas.winfo_reqwidth()
+            if canvas_h <= 1:
+                canvas_h = self.bubble_canvas.winfo_reqheight()
+            width = 70 + max(200, canvas_w)
+            height = max(70, canvas_h)
+        else:
+            width, height = 70, 70
+
         self.root.geometry(f"{width}x{height}+{new_x}+{new_y}")
-        
+
         self.drag_data["x"] = event.x_root
         self.drag_data["y"] = event.y_root
 
@@ -786,27 +663,6 @@ class FloatingHud:
         self.settings.hud_position_x = self.root.winfo_x()
         self.settings.hud_position_y = self.root.winfo_y()
         self.settings.save()
-
-    # --- Loading History ---
-
-    def _load_recent_history(self) -> list[dict[str, Any]]:
-        from .history import HISTORY_PATH
-        import json
-        history = []
-        if HISTORY_PATH.exists():
-            try:
-                with HISTORY_PATH.open("r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    for line in lines[-15:]:
-                        try:
-                            record = json.loads(line)
-                            if record.get("summary"):
-                                history.append(record)
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-        return history
 
     # --- Thread Queue Checking ---
 

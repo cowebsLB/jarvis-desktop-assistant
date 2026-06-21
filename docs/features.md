@@ -252,25 +252,19 @@ Current normalization handles:
 
 ### Floating HUD
 
-- first-pass floating HUD is now available as an always-on-top orb
+- The HUD is designed as a borderless, transparent, floating animated orb (70x70) with no rectangular card background when idle.
 - HUD behavior currently includes:
-  - wake pulse when the wake word is detected
-  - sustained pulse while the assistant is active
-  - transcript bubble after speech is captured
-  - intent, plan, and status display during processing
-  - research progress display during web-search states
-  - top citations from the latest result
-  - recent history summaries
-  - short reply bubble before collapsing back down
+  - Wake pulse when the wake word is detected
+  - Chat-style speech bubble with rounded corners and a semi-transparent futuristic glass effect next to the orb when active
+  - Text bubble and controls that fade in/out dynamically with state changes
+  - Active pulsing of the orb during listening, thinking, executing, and speaking
+  - Auto-sizing of the speech bubble to fit its text content dynamically
+  - Instant fade-out and collapse back to the 70x70 orb footprint when returning to idle or suspended states
 - HUD interaction currently includes:
-  - `Yes` / `No` confirmation buttons
-  - text entry for clarification or typed follow-up submission
-- HUD polish currently includes:
-  - clickable source links
-  - compact chevron collapse / expand control
-  - runtime tray visibility toggle without restarting the assistant
-- HUD window can be dragged and its position is saved in settings
-- HUD state is driven directly from assistant and tray events rather than log polling
+  - Inline action buttons (`Yes` / `No` buttons) for confirmations inside the speech bubble
+  - Text input field inside the bubble for clarification responses or typed follow-up submissions
+- HUD window can be dragged to any position on the screen, and its position is persisted automatically in settings.
+- HUD state transitions are driven directly from assistant events rather than log polling.
 
 ### Runtime State Tracking
 

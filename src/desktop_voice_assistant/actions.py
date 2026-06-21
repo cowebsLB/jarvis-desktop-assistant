@@ -408,7 +408,7 @@ class ActionExecutor:
 
     @staticmethod
     def _launch_target(target: str, spoken_name: str) -> None:
-        if "://" in target or target.endswith(":"):
+        if "://" in target or target.endswith(":") or target.lower().endswith(".lnk"):
             os.startfile(target)  # type: ignore[attr-defined]
             return
 

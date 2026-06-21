@@ -55,6 +55,13 @@ class TextToSpeech:
         with self._lock:
             self.engine.say(text)
             self.engine.runAndWait()
+            
+            # Workaround for non-blocking TTS on background threads:
+            # Sleep for the estimated duration of the speech plus padding
+            rate = max(50, self.settings.speech_rate)
+            word_count = len(text.split())
+            duration = (word_count / rate) * 60.0
+            time.sleep(duration + 0.6)
 
     def play_listen_cue(self) -> None:
         if not self.settings.wake_cue_enabled:
