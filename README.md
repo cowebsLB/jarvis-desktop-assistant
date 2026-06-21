@@ -19,6 +19,7 @@ This project is building toward a practical desktop assistant that feels convers
 - Ollama-backed local question answering
 - Internal web search, scraping, summarization, and local archive recall
 - Safe desktop control for apps, folders, files, and dictation
+- Floating HUD orb with live wake/listen/process/reply feedback
 - Runtime state machine, structured JSONL history, and short follow-up memory
 - Windows system tray runtime with manual controls
 
@@ -34,6 +35,8 @@ This project is building toward a practical desktop assistant that feels convers
 - Calculate expressions locally
 - Research the web without forcing a browser-first flow
 - Answer more cautiously when live evidence is thin, conflicting, or archive notes are stale
+- Show a draggable floating HUD with orb pulse and processing bubble
+- Use HUD confirmation buttons and text input for follow-up / clarification flows
 - Reuse recent context for follow-ups like `open it`, `summarize that`, and `search again`
 - Ask for clarification or confirmation when the target is ambiguous
 
@@ -61,7 +64,7 @@ The runtime loop is:
 1. Wake word or tray action triggers a request.
 2. Audio is captured with adaptive silence detection.
 3. Speech is transcribed locally.
-4. A rule-based router selects an intent.
+4. A rule-based router selects an intent, with an intelligent LLM-based fallback when regex parsing fails.
 5. The assistant executes a desktop action, weather lookup, local QA response, or internal research flow.
 6. The reply is spoken and the request is recorded in structured history.
 
@@ -70,6 +73,7 @@ Core modules:
 - `src/desktop_voice_assistant/assistant.py`: request orchestration and multi-step handling
 - `src/desktop_voice_assistant/speech.py`: wake word, STT, and TTS
 - `src/desktop_voice_assistant/intent_router.py`: intent routing and slot extraction
+- `src/desktop_voice_assistant/capabilities.py`: centralized registry of intents, slots, and descriptions used for LLM fallback routing
 - `src/desktop_voice_assistant/actions.py`: desktop actions and launch logic
 - `src/desktop_voice_assistant/research.py`: search, fetch, summarize, archive
 - `src/desktop_voice_assistant/state_manager.py`: runtime state transitions
@@ -126,6 +130,7 @@ Implemented now:
 - Local speech and local TTS
 - Weather, QA, and internal web research
 - Structured history and explicit runtime states
+- First-pass floating HUD driven by live assistant state
 - Follow-up memory for short conversational chains
 - Clarification and confirmation for ambiguous actions
 - First-pass desktop control for apps, folders, files, clipboard helpers, and calculations
@@ -162,7 +167,7 @@ Run the test suite with:
 python -m pytest
 ```
 
-Current baseline: `74/74` passing tests.
+Current baseline: `87/87` passing tests.
 
 ## Local Data
 

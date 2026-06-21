@@ -457,6 +457,33 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Fix type:
   - `Permanent`
 
+### 38. The assistant had no live visual feedback layer
+
+- Symptom:
+  - users had to infer whether Jarvis was idle, listening, processing, or replying from audio cues and tray state alone
+- Root cause:
+  - there was no floating visual surface connected directly to the request lifecycle
+- Resolution:
+  - added a draggable always-on-top HUD orb
+  - wired wake, transcript, intent, reply, and runtime state events directly into the HUD
+  - saved HUD position in settings
+- Fix type:
+  - `Partial`
+
+### 39. The first HUD pass still lacked real interaction and deeper request context
+
+- Symptom:
+  - the initial HUD could pulse and show transcript and reply, but it could not show plan details, research progress, recent history, or let the user answer confirmations directly
+- Root cause:
+  - the first implementation only consumed a narrow event surface and had no path to submit typed follow-up input back into the assistant
+- Resolution:
+  - added HUD plan, research-progress, citation, and recent-history views
+  - added inline `Yes` / `No` confirmation buttons
+  - added text input for clarification and typed follow-up submission
+  - added direct HUD-originated text request handling in the assistant/tray flow
+- Fix type:
+  - `Partial`
+
 ## Current Open Issues
 
 ### Speech mis-transcription remains a source of failure
@@ -506,3 +533,13 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Notes:
   - evidence handling is safer now
   - authority-aware ranking is still future work
+
+### HUD is still a first-pass overlay
+
+- Example:
+  - the overlay now shows plan and confirmation context, but it is still not a polished custom desktop shell
+- Status:
+  - open
+- Notes:
+  - current implementation prioritizes low-friction live feedback first
+  - richer UI polish is still future work

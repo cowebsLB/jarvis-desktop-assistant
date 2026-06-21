@@ -189,6 +189,24 @@ Current normalization handles:
 - quit
 - tray title now reflects assistant runtime state instead of a loose ad-hoc label
 
+### Floating HUD
+
+- first-pass floating HUD is now available as an always-on-top orb
+- HUD behavior currently includes:
+  - wake pulse when the wake word is detected
+  - sustained pulse while the assistant is active
+  - transcript bubble after speech is captured
+  - intent, plan, and status display during processing
+  - research progress display during web-search states
+  - top citations from the latest result
+  - recent history summaries
+  - short reply bubble before collapsing back down
+- HUD interaction currently includes:
+  - `Yes` / `No` confirmation buttons
+  - text entry for clarification or typed follow-up submission
+- HUD window can be dragged and its position is saved in settings
+- HUD state is driven directly from assistant and tray events rather than log polling
+
 ### Runtime State Tracking
 
 - assistant request flow now uses explicit runtime states
@@ -225,10 +243,18 @@ Current normalization handles:
   - correlation id
   - structured payload
 
+### Capability Registry & LLM Fallback Routing
+
+- Centralized capabilities registry detailing all 30 intents, descriptions, required/optional slots, and query examples.
+- Injects capability registry schema and examples directly into the LLM system prompt in [llm.py](file:///C:/Users/user/OneDrive/Documents/projects/Desktop%20voice%20assitant/src/desktop_voice_assistant/llm.py).
+- Implements LLM-based intent routing in `OllamaAssistant` to parse user queries into structured intents and slots using the capability schema.
+- Automatic routing fallback in `DesktopAssistant` when the regex-based `IntentRouter` returns `unsupported`.
+- Full unit tests for the fallback mechanism in [test_assistant.py](file:///C:/Users/user/OneDrive/Documents/projects/Desktop%20voice%20assitant/tests/test_assistant.py).
+
 ### Verification Baseline
 
 - automated test suite currently passes:
-  - `74/74`
+  - `87/87`
 
 ## Implemented But Limited
 
@@ -259,6 +285,14 @@ Current normalization handles:
 - clipboard phrasing currently covers a narrow command set
 - focus phrasing currently covers direct commands such as `switch to notepad` and `switch back`
 - follow-up handling is narrow and pattern-based, not general conversational reasoning yet
+
+### HUD Limits
+
+- the current HUD is a first-pass tkinter overlay, not a full polished desktop shell
+- it does not yet show:
+  - full settings controls
+  - richer inline history navigation
+  - richer citation interaction than title-only display
 
 ### Web Research Limits
 

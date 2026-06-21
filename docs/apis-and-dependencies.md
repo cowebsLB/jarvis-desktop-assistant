@@ -55,6 +55,10 @@
 
 - tray icon runtime
 
+### tkinter
+
+- built-in Windows UI toolkit used for the floating HUD overlay
+
 ### pyautogui
 
 - text typing into active window
@@ -113,6 +117,17 @@
 - format:
   - one JSON object per line
 - startup writes an `app_started` event so the file is initialized immediately
+
+### HUD Settings
+
+- path:
+  - `%USERPROFILE%\\.desktop_voice_assistant\\settings.json`
+- purpose:
+  - store HUD enablement and saved floating position
+- current keys:
+  - `hud_enabled`
+  - `hud_position_x`
+  - `hud_position_y`
 
 ### App Memory
 

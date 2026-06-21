@@ -6,6 +6,7 @@ from .actions import ActionExecutor
 from .assistant import DesktopAssistant
 from .config import Settings
 from .history import HistoryEvent, HistoryRecorder
+from .hud import FloatingHud
 from .intent_router import IntentRouter
 from .llm import OllamaAssistant
 from .logging_utils import configure_logging
@@ -25,7 +26,10 @@ def main() -> None:
     settings = Settings.load()
     router = IntentRouter()
     actions = ActionExecutor(settings)
+    hud = FloatingHud(settings) if settings.hud_enabled else None
     history = HistoryRecorder()
+    if hud:
+        history.subscribe(hud.on_history_event)
     history.append(
         HistoryEvent(
             kind="app_started",
@@ -60,9 +64,12 @@ def main() -> None:
         logging.getLogger(__name__).warning("Speech-to-text unavailable: %s", exc)
         stt = MissingSpeechToText(str(exc))
     weather = WeatherService(settings.default_location)
-    assistant = DesktopAssistant(settings, router, actions, stt, tts, llm, weather, history, researcher)
+    assistant = DesktopAssistant(settings, router, actions, stt, tts, llm, weather, history, researcher, hud=hud)
     assistant.set_runtime_state(RuntimeState.IDLE, reason="assistant boot complete")
-    TrayApplication(assistant, settings).run()
+    tray = TrayApplication(assistant, settings, hud=hud)
+    if hud:
+        hud.on_submit_text = tray.submit_text_request
+    tray.run()
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ The assistant is a local Windows desktop app that runs as a system tray process.
 
 The runtime now has an explicit state manager so request progress is not inferred from tray strings alone.
 It also now has a short-lived session manager for follow-up context reuse across nearby turns.
+It now also has a floating HUD layer that reflects wake, capture, processing, and reply activity in near real time.
 
 ## Main Runtime Flow
 
@@ -39,12 +40,23 @@ It also now has a short-lived session manager for follow-up context reuse across
   - wake word control
   - speech model warmup action
   - single-flight request protection
+  - wake pulse trigger for the floating HUD
 
 - `assistant.py`
   - request orchestration
   - STT -> intent -> action/QA/research/weather -> TTS flow
   - owns runtime state transitions for the main request flow
   - applies short-lived follow-up context before normal routing
+  - emits transcript, intent, result, history, and state updates to the HUD
+  - accepts HUD-originated typed input for confirmation or clarification flows
+
+- `hud.py`
+  - draggable always-on-top floating orb
+  - pulse animation by assistant state
+  - transcript / intent / reply bubble rendering
+  - plan steps, research progress, citation, and recent-history display
+  - inline confirmation buttons and text follow-up entry
+  - persisted HUD position through settings
 
 - `speech.py`
   - local TTS adapter
@@ -119,6 +131,10 @@ It also now has a short-lived session manager for follow-up context reuse across
 
 - Runtime state history:
   - written into `%USERPROFILE%\\.desktop_voice_assistant\\history.jsonl` as `state_transition` events
+  - also streamed into the HUD as recent summaries
+
+- HUD position:
+  - stored in settings as persisted window coordinates
 
 ## Safety Boundaries
 

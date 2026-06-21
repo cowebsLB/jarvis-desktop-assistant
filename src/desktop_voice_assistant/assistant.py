@@ -33,6 +33,7 @@ class DesktopAssistant:
         weather: WeatherService,
         history: HistoryRecorder,
         researcher: WebResearcher | None = None,
+        hud=None,
     ) -> None:
         self.settings = settings
         self.router = router
@@ -43,10 +44,25 @@ class DesktopAssistant:
         self.weather = weather
         self.history = history
         self.researcher = researcher
+        self.hud = hud
         self.state_manager = StateManager(initial_state=RuntimeState.IDLE, on_transition=self._record_state_transition)
         self.session = SessionManager(settings.conversation_followup_seconds)
         self._active_correlation_id: str | None = None
         self._active_conversation_id: str | None = None
+
+        from .productivity import ProductivityManager
+        self.productivity = ProductivityManager(on_notification=self._handle_productivity_notification)
+        self.productivity.start()
+
+    def _handle_productivity_notification(self, message: str) -> None:
+        self.history.append(
+            HistoryEvent(
+                kind="alert_triggered",
+                data={"message": message},
+                summary=message,
+            )
+        )
+        self.tts.speak(message)
 
     def reload_stt(self) -> None:
         self.stt = SpeechToText(self.settings)
@@ -66,12 +82,16 @@ class DesktopAssistant:
         correlation_id: str | None = None,
         conversation_id: str | None = None,
     ) -> None:
+        if state == RuntimeState.SHUTTING_DOWN:
+            self.productivity.stop()
         self.state_manager.transition(
             state,
             reason=reason,
             correlation_id=correlation_id or self._active_correlation_id,
             conversation_id=conversation_id or self._active_conversation_id,
         )
+        if self.hud:
+            self.hud.on_state_change(state, reason)
 
     def listen_and_handle(self) -> ActionResult:
         correlation_id = str(uuid4())
@@ -123,11 +143,31 @@ class DesktopAssistant:
             return result
 
         request = AssistantRequest(
+            source="microphone",
             transcript=transcript.text,
             timestamp=datetime.now(UTC),
             audio_seconds=transcript.audio_seconds,
         )
+        return self._handle_request(request, correlation_id=correlation_id, conversation_id=conversation_id)
+
+    def handle_text_input(self, text: str, *, source: str = "hud") -> ActionResult:
+        correlation_id = str(uuid4())
+        conversation_id = self.session.conversation_id_for_turn()
+        self._active_correlation_id = correlation_id
+        self._active_conversation_id = conversation_id
+        self.set_runtime_state(RuntimeState.UNDERSTANDING, reason="text input received")
+        request = AssistantRequest(
+            transcript=text,
+            timestamp=datetime.now(UTC),
+            source=source,
+            audio_seconds=None,
+        )
+        return self._handle_request(request, correlation_id=correlation_id, conversation_id=conversation_id)
+
+    def _handle_request(self, request: AssistantRequest, *, correlation_id: str, conversation_id: str) -> ActionResult:
         LOGGER.info("Transcript: %s", request.transcript)
+        if self.hud:
+            self.hud.on_transcript(request.transcript)
         normalized_followup = self.router.normalize_for_followup(request.transcript)
         confirmation = self.session.consume_confirmation(normalized_followup)
         clarification = None if confirmation else self._consume_clarification(normalized_followup, request.transcript)
@@ -138,7 +178,14 @@ class DesktopAssistant:
             intent = clarification
         else:
             intent = IntentResult(followup[0], 0.96, followup[1]) if followup else self.router.route(request.transcript)
+            if intent.intent == "unsupported":
+                LOGGER.info("Regex routing returned unsupported. Trying LLM-based intent routing.")
+                llm_intent = self.llm.route_intent(request.transcript)
+                if llm_intent:
+                    intent = llm_intent
         LOGGER.info("Intent: %s", intent.intent)
+        if self.hud:
+            self.hud.on_intent(intent.intent, intent.slots)
         self.set_runtime_state(RuntimeState.PLANNING, reason=f"routing intent {intent.intent}")
         self.history.append(
             HistoryEvent(
@@ -146,6 +193,7 @@ class DesktopAssistant:
                 data={
                     "transcript": request.transcript,
                     "audio_seconds": request.audio_seconds,
+                    "source": request.source,
                     "intent": intent.intent,
                     "slots": intent.slots,
                 },
@@ -171,6 +219,64 @@ class DesktopAssistant:
             self.set_runtime_state(RuntimeState.EXECUTING, reason="answering question")
             answer = self._answer_question(intent.slots["query"])
             result = ActionResult(True, answer, answer)
+        elif intent.intent == "set_timer":
+            from .productivity import parse_duration_to_seconds
+            duration_sec = parse_duration_to_seconds(intent.slots["duration"], intent.slots["unit"])
+            label = f"{intent.slots['duration']} {intent.slots['unit']}"
+            self.productivity.add_timer(label, duration_sec)
+            msg = f"Timer set for {intent.slots['duration']} {intent.slots['unit']}."
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "set_reminder":
+            from .productivity import parse_duration_to_seconds
+            duration_sec = parse_duration_to_seconds(intent.slots["duration"], intent.slots["unit"])
+            self.productivity.add_reminder(intent.slots["text"], duration_sec)
+            msg = f"Reminder set: {intent.slots['text']} in {intent.slots['duration']} {intent.slots['unit']}."
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "set_alarm":
+            h = int(intent.slots["hour"])
+            m = int(intent.slots["minute"])
+            p = intent.slots["period"]
+            self.productivity.add_alarm(h, m, p)
+            period_str = f" {p.upper()}" if p else ""
+            msg = f"Alarm set for {h:02d}:{m:02d}{period_str}."
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "add_task":
+            self.productivity.add_task(intent.slots["task"])
+            msg = f"Added '{intent.slots['task']}' to your tasks."
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "list_tasks":
+            tasks = self.productivity.list_tasks()
+            if not tasks:
+                msg = "Your task list is empty."
+            else:
+                msg = "Here are your tasks: " + ", ".join(f"{idx+1}. {t}" for idx, t in enumerate(tasks))
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "clear_tasks":
+            self.productivity.clear_tasks()
+            msg = "Task list cleared."
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "take_note":
+            from pathlib import Path
+            note_text = intent.slots["text"]
+            notes_dir = Path.home() / ".desktop_voice_assistant"
+            notes_dir.mkdir(parents=True, exist_ok=True)
+            notes_file = notes_dir / "quick-notes.md"
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with notes_file.open("a", encoding="utf-8") as f:
+                f.write(f"## {timestamp}\n\n{note_text}\n\n")
+            msg = f"Note saved: {note_text}"
+            result = ActionResult(True, msg, msg)
+        elif intent.intent == "browser_summarize":
+            self.set_runtime_state(RuntimeState.EXECUTING, reason="scraping active page content")
+            page_text = self.actions._get_active_page_text()
+            if not page_text:
+                result = ActionResult(False, "Could not capture page content. Ensure browser window is focused.", "I could not capture any web page content to summarize.")
+            else:
+                self.set_runtime_state(RuntimeState.EXECUTING, reason="summarizing page content")
+                truncated_text = page_text[:4000]
+                prompt = "Summarize the active web page content compactly:"
+                summary = self.llm.answer_with_context(prompt, truncated_text)
+                result = ActionResult(True, summary, summary)
         elif intent.intent == "open_target":
             result = self._handle_open_target(intent)
         elif intent.intent == "unsupported":
@@ -178,6 +284,9 @@ class DesktopAssistant:
         else:
             self.set_runtime_state(RuntimeState.EXECUTING, reason=f"executing intent {intent.intent}")
             result = self.actions.execute(intent)
+
+        # Save to conversational turn memory
+        self.actions.memory.add_turn(request.transcript, result.spoken_reply or result.message, self.llm)
 
         self._update_session(intent, result)
 
@@ -200,6 +309,10 @@ class DesktopAssistant:
         return result
 
     def _answer_question(self, query: str) -> str:
+        history_context = self.actions.memory.get_turns_context()
+        if history_context:
+            return self.llm.answer_with_context(query, history_context)
+
         if self.researcher:
             recall = self.researcher.recall(query, limit=self.settings.archive_recall_limit)
             if recall:
@@ -298,6 +411,8 @@ class DesktopAssistant:
         return self.actions.execute(intent)
 
     def _speak_and_transition(self, result: ActionResult) -> None:
+        if self.hud:
+            self.hud.on_result(result.spoken_reply or result.message, success=result.success, sources=result.sources)
         if result.spoken_reply:
             self.set_runtime_state(RuntimeState.SPEAKING, reason="speaking reply")
             self.tts.speak(result.spoken_reply)

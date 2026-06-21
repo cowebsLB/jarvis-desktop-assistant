@@ -37,6 +37,9 @@ class Settings:
     silence_timeout_seconds: float = 1.0
     speech_level_threshold: int = 450
     wake_cue_enabled: bool = True
+    hud_enabled: bool = True
+    hud_position_x: int | None = None
+    hud_position_y: int | None = None
     app_allowlist: dict[str, str] = field(
         default_factory=lambda: {
             "notepad": "notepad.exe",

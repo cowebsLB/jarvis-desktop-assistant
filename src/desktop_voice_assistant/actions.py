@@ -11,6 +11,7 @@ import webbrowser
 import winreg
 from datetime import UTC, datetime
 from pathlib import Path
+import time
 from urllib.parse import quote_plus
 
 from .app_memory import AppMemoryStore
@@ -57,6 +58,20 @@ class ActionExecutor:
             return self._open_source(intent.slots["url"], intent.slots.get("title") or intent.slots["url"])
         if intent.intent == "web_search":
             return self._search_web(intent.slots["query"])
+        if intent.intent == "browser_tab_next":
+            return self._browser_hotkey("ctrl", "tab", message="Switched to next tab.")
+        if intent.intent == "browser_tab_prev":
+            return self._browser_hotkey("ctrl", "shift", "tab", message="Switched to previous tab.")
+        if intent.intent == "browser_tab_new":
+            return self._browser_hotkey("ctrl", "t", message="Opened new tab.")
+        if intent.intent == "browser_tab_close":
+            return self._browser_hotkey("ctrl", "w", message="Closed active tab.")
+        if intent.intent == "browser_back":
+            return self._browser_hotkey("alt", "left", message="Went back.")
+        if intent.intent == "browser_forward":
+            return self._browser_hotkey("alt", "right", message="Went forward.")
+        if intent.intent == "browser_refresh":
+            return self._browser_hotkey("f5", message="Refreshed page.")
         if intent.intent == "unsupported":
             return ActionResult(
                 False,
@@ -304,6 +319,29 @@ class ActionExecutor:
             pyautogui.FAILSAFE = True
             self._pyautogui = pyautogui
         return self._pyautogui
+
+    def _browser_hotkey(self, *keys: str, message: str = "") -> ActionResult:
+        try:
+            pyautogui = self._get_pyautogui()
+            pyautogui.hotkey(*keys)
+            return ActionResult(True, message, message)
+        except Exception as exc:
+            return ActionResult(False, f"Failed to execute keyboard shortcut: {exc}")
+
+    def _get_active_page_text(self) -> str:
+        try:
+            pyautogui = self._get_pyautogui()
+            import pyperclip
+            old_clip = pyperclip.paste()
+            pyautogui.hotkey("ctrl", "a")
+            time.sleep(0.1)
+            pyautogui.hotkey("ctrl", "c")
+            time.sleep(0.2)
+            text = pyperclip.paste()
+            pyperclip.copy(old_clip)
+            return text.strip()
+        except Exception:
+            return ""
 
     @staticmethod
     def _get_clipboard_text() -> str:

@@ -65,13 +65,14 @@
   - regression suite expanded
 - Test checkpoint:
   - full `python -m pytest`
-  - manual smoke tests:
-    - wake word -> weather
-    - web research -> follow-up summary
-    - risky action -> confirmation
-    - calculator
-    - clipboard helper
-    - local file open
+- manual smoke tests:
+  - wake word -> weather
+  - web research -> follow-up summary
+  - risky action -> confirmation
+  - calculator
+  - clipboard helper
+  - local file open
+  - floating HUD pulse / transcript / reply cycle
 
 ### Assistant Flow And State
 
@@ -120,40 +121,18 @@
 
 ### UI And Settings
 
-- Add a compact desktop HUD.
-- Surface current state in both the tray title and the HUD.
-- HUD should show:
-  - current state
-  - live transcript
-  - parsed intent
-  - planned steps
-  - research progress
-  - citations
-  - confirmations
-  - recent history
-- Add a proper settings UI instead of JSON-only editing.
 - Add settings for:
   - voice style
   - TTS engine
-  - follow-up timeout
   - push-to-talk
   - confirmation policy
-  - web fetch limits
   - archive behavior
-  - embedding model
   - proactive features
+
 
 ### Conversation, Memory, And Autonomy
 
-- Add conversational memory and broader context across turns.
-- Add long-term preference memory:
-  - preferred apps
-  - preferred locations
-  - favorite sites
-  - repeated aliases
-- Add memory summarization so prompts stay compact.
 - Keep broad autonomy for safe actions without re-asking.
-- Add a capability registry so tools and actions are discoverable in one place.
 - Add retrieval over:
   - archived web research
   - future conversation summaries
@@ -164,24 +143,14 @@
 
 - Add app-specific helpers for common apps instead of generic launching only.
 - Add browser automation beyond simple search:
-  - open result pages
-  - summarize current page
   - click basic controls
   - fill simple forms
 - Add Windows UI automation for desktop apps beyond raw typing.
 - Add calculator workflow support inside opened apps when needed.
-- Add tests for browser automation helpers.
 - Add tests for Windows UI automation wrappers where possible.
 
 ### Productivity Basics
 
-- Add reminders.
-- Add timers.
-- Add alarms.
-- Add quick notes.
-- Add local task list management.
-- Add queued spoken notifications for reminders and timers.
-- Add tests for proactive reminders and timers.
 
 ## Later
 
@@ -336,3 +305,58 @@
   - conflicting live sources
   - embedding downgrade fallback
   - research results retaining sources
+- Floating HUD, first pass:
+  - always-on-top draggable orb
+  - wake pulse
+  - active-state pulsing while listening / processing / speaking
+  - transcript / intent / reply bubble
+  - saved HUD position in settings
+- Regression coverage added for:
+  - assistant HUD event emission
+- Floating HUD, completion pass:
+  - planned steps display
+  - research progress display
+  - citations display
+  - confirmations display
+  - recent history display
+  - inline `Yes` / `No` actions
+  - typed clarification / follow-up entry
+- Regression coverage added for:
+  - HUD text-input request path
+- Floating HUD, visual polish pass:
+  - Concentric breathing/pulsing canvas orb with state colors.
+  - Clickable citation links opening in default browser.
+  - Compact chevron collapse/expand affordance.
+  - Tray menu item to toggle HUD on/off.
+- Regression coverage added for:
+  - Real FloatingHud class event queueing and thread-safe behavior.
+- Settings Panel GUI:
+  - Styled dark settings window matching HUD styling.
+  - Form fields and sliders for Assistant Name, default location, wake word toggle, wake phrase dropdown, speech rate slider, semantic retrieval toggle, LLM/embedding models, fetch limits, HUD toggle, and follow-up timeout.
+  - Dynamically saves to settings.json and synchronizes runtime values (TTS speech rate, HUD state, wake word listener) instantly on save.
+- Regression coverage added for:
+  - SettingsPanel class initialization and default binding.
+- Productivity Basics:
+  - Reminders, timers, alarms background thread scheduler and filesystem JSON database store in [productivity.py](file:///C:/Users/user/OneDrive/Documents/projects/Desktop%20voice%20assitant/src/desktop_voice_assistant/productivity.py).
+  - Queued thread-safe spoken voice alarms and reminders.
+  - General quick note-taking output directly appended to markdown log file.
+  - CRUD action and task list management APIs.
+  - Regressions test suite coverage.
+- Conversational & Preference Memory:
+  - Multi-turn turn accumulation and LLM context prompt construction.
+  - Automated history summarization via LLM upon reaching five conversational turns threshold to maintain compact prompts.
+  - Long-term preference storage for favorite websites, apps, and locations.
+  - Regressions test suite coverage.
+- Browser Automation:
+  - Keyboard-shortcut bindings (tab navigation, reload, new tab, go back/forward).
+  - Active browser page content extraction and local LLM summarization.
+  - Regressions test suite coverage.
+- Capability Registry:
+  - Central registry module detailing all actions, intents, slots, and descriptions in capabilities.py.
+  - Expose formatting method to inject this register directly into the LLM system prompt.
+  - Implement LLM route_intent classification method to intelligently fallback and choose paths when regex parsing fails.
+  - Regressions test suite coverage.
+
+
+
+

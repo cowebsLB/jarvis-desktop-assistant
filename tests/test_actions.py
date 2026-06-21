@@ -255,3 +255,50 @@ def test_open_file_returns_safe_failure_when_missing(monkeypatch) -> None:
     result = action.execute(IntentResult("open_file", 0.92, {"target": "totally missing file"}))
     assert not result.success
     assert "couldn't find a local file" in result.spoken_reply.lower()
+
+
+def test_browser_hotkeys_dispatch(monkeypatch) -> None:
+    action = ActionExecutor(Settings())
+    pressed: list[tuple[str, ...]] = []
+
+    class FakePyAutoGui:
+        def hotkey(self, *keys) -> None:
+            pressed.append(keys)
+
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyAutoGui())
+
+    # next tab
+    result = action.execute(IntentResult("browser_tab_next", 0.95, {}))
+    assert result.success
+    assert pressed[-1] == ("ctrl", "tab")
+
+    # previous tab
+    result = action.execute(IntentResult("browser_tab_prev", 0.95, {}))
+    assert result.success
+    assert pressed[-1] == ("ctrl", "shift", "tab")
+
+    # new tab
+    result = action.execute(IntentResult("browser_tab_new", 0.95, {}))
+    assert result.success
+    assert pressed[-1] == ("ctrl", "t")
+
+    # close tab
+    result = action.execute(IntentResult("browser_tab_close", 0.95, {}))
+    assert result.success
+    assert pressed[-1] == ("ctrl", "w")
+
+    # go back
+    result = action.execute(IntentResult("browser_back", 0.95, {}))
+    assert result.success
+    assert pressed[-1] == ("alt", "left")
+
+    # go forward
+    result = action.execute(IntentResult("browser_forward", 0.95, {}))
+    assert result.success
+    assert pressed[-1] == ("alt", "right")
+
+    # refresh page
+    result = action.execute(IntentResult("browser_refresh", 0.95, {}))
+    assert result.success
+    assert pressed[-1] == ("f5",)
+

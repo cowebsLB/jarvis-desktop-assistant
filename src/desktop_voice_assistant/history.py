@@ -43,8 +43,15 @@ class HistoryRecorder:
     def __init__(self, path: Path = HISTORY_PATH) -> None:
         self.path = path
         APP_DIR.mkdir(parents=True, exist_ok=True)
+        self._subscribers: list = []
 
     def append(self, event: HistoryEvent) -> None:
+        record = event.to_record()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event.to_record(), ensure_ascii=True) + "\n")
+            handle.write(json.dumps(record, ensure_ascii=True) + "\n")
+        for subscriber in list(self._subscribers):
+            subscriber(record)
+
+    def subscribe(self, callback) -> None:
+        self._subscribers.append(callback)

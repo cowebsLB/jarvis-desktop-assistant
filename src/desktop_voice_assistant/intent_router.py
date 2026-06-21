@@ -10,6 +10,62 @@ class IntentRouter:
         text = transcript.strip()
         normalized = self._normalize_text(text)
 
+        # Timers
+        if match := re.search(r"\b(?:set|start)?\s*(?:a)?\s*timer\s+(?:for\s+)?(\d+)\s*(second|sec|minute|min|hour|hr)s?\b", normalized):
+            return IntentResult("set_timer", 0.95, {"duration": match.group(1), "unit": match.group(2)})
+
+        # Reminders
+        if match := re.search(r"\b(?:set\s+a\s+)?reminder\s+(?:to\s+|for\s+)?(.+?)\s+in\s+(\d+)\s*(second|sec|minute|min|hour|hr)s?\b", normalized):
+            return IntentResult("set_reminder", 0.95, {"text": match.group(1).strip(), "duration": match.group(2), "unit": match.group(3)})
+        if match := re.search(r"\bremind\s+me\s+to\s+(.+?)\s+in\s+(\d+)\s*(second|sec|minute|min|hour|hr)s?\b", normalized):
+            return IntentResult("set_reminder", 0.95, {"text": match.group(1).strip(), "duration": match.group(2), "unit": match.group(3)})
+
+        # Alarms
+        if match := re.search(r"\b(?:set\s+an\s+)?alarm\s+(?:for\s+)?(\d{1,2}):(\d{2})\s*(am|pm)?\b", normalized):
+            return IntentResult("set_alarm", 0.95, {"hour": match.group(1), "minute": match.group(2), "period": match.group(3) or ""})
+        if match := re.search(r"\b(?:set\s+an\s+)?alarm\s+(?:for\s+)?(\d{1,2})\s*(am|pm)\b", normalized):
+            return IntentResult("set_alarm", 0.95, {"hour": match.group(1), "minute": "00", "period": match.group(2)})
+
+        # Tasks
+        if match := re.search(r"\badd\s+(.+?)\s+to\s+(?:my\s+)?(?:task\s+list|tasks)\b", normalized):
+            return IntentResult("add_task", 0.95, {"task": match.group(1).strip()})
+
+        if re.search(r"\b(?:list|show|what are)\s+(?:my\s+)?(?:tasks|task\s+list)\b", normalized):
+            return IntentResult("list_tasks", 0.95, {})
+
+        if re.search(r"\b(?:clear|empty|delete)\s+(?:my\s+)?(?:tasks|task\s+list)\b", normalized):
+            return IntentResult("clear_tasks", 0.95, {})
+
+        # Quick notes
+        if match := re.search(r"\b(?:take\s+a\s+note\s+that|save\s+note|add\s+note\s+that|take\s+note)\s+(.+)$", normalized):
+            return IntentResult("take_note", 0.95, {"text": match.group(1).strip()})
+
+        # Browser Automation
+        if re.search(r"\b(?:summarize|explain)\s+(?:this|the)\s+(?:page|website|webpage)\b", normalized):
+            return IntentResult("browser_summarize", 0.95, {})
+
+        if re.search(r"\b(?:next|switch\s+to\s+next)\s+tab\b", normalized):
+            return IntentResult("browser_tab_next", 0.95, {})
+
+        if re.search(r"\b(?:previous|last|switch\s+to\s+previous)\s+tab\b", normalized):
+            return IntentResult("browser_tab_prev", 0.95, {})
+
+        if re.search(r"\b(?:open\s+(?:a\s+)?new|new)\s+tab\b", normalized):
+            return IntentResult("browser_tab_new", 0.95, {})
+
+        if re.search(r"\bclose\s+(?:this\s+)?tab\b", normalized):
+            return IntentResult("browser_tab_close", 0.95, {})
+
+        if re.search(r"\bgo\s+back\b", normalized):
+            return IntentResult("browser_back", 0.95, {})
+
+        if re.search(r"\bgo\s+forward\b", normalized):
+            return IntentResult("browser_forward", 0.95, {})
+
+        if re.search(r"\b(?:refresh|reload)\s+(?:this\s+)?page\b", normalized):
+            return IntentResult("browser_refresh", 0.95, {})
+
+
         if match := re.match(r"^(type|dictate)\s+(.+)$", normalized, re.IGNORECASE):
             dictated_text = self._extract_after_command(text, match.group(1))
             return IntentResult("dictate", 0.99, {"text": dictated_text})

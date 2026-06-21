@@ -48,6 +48,9 @@ class FakeLLM:
     def answer_with_context(self, question: str, context: str) -> str:
         return "answer with context"
 
+    def route_intent(self, transcript: str):
+        return None
+
 
 class FakeWeather:
     def get_summary(self, location: str | None = None):
@@ -64,6 +67,26 @@ class FakeHistory:
 
     def append(self, event) -> None:
         self.events.append(event)
+
+
+class FakeHud:
+    def __init__(self) -> None:
+        self.states: list[tuple[str, str | None]] = []
+        self.transcripts: list[str] = []
+        self.intents: list[tuple[str, dict[str, str]]] = []
+        self.results: list[tuple[str, bool]] = []
+
+    def on_state_change(self, state, reason: str | None = None) -> None:
+        self.states.append((state.value if hasattr(state, "value") else str(state), reason))
+
+    def on_transcript(self, transcript: str) -> None:
+        self.transcripts.append(transcript)
+
+    def on_intent(self, intent: str, slots: dict[str, str]) -> None:
+        self.intents.append((intent, slots))
+
+    def on_result(self, reply: str | None, *, success: bool, sources=None) -> None:
+        self.results.append((reply or "", success))
 
 
 class FakeResearcher:
@@ -370,3 +393,182 @@ def test_confirmation_no_cancels_pending_open(monkeypatch) -> None:
     assert second.success
     assert "cancelled" in second.message.lower()
     assert assistant.session.snapshot.pending_confirmation is None
+
+
+def test_assistant_emits_hud_events() -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    hud = FakeHud()
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        SequenceSTT(["what's the weather in beirut"]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+        hud=hud,
+    )
+
+    result = assistant.listen_and_handle()
+
+    assert result.success
+    assert hud.transcripts == ["what's the weather in beirut"]
+    assert hud.intents and hud.intents[0][0] == "weather"
+    assert hud.results and hud.results[-1][1] is True
+    assert any(state == RuntimeState.TRANSCRIBING.value for state, _ in hud.states)
+    assert any(state == RuntimeState.SPEAKING.value for state, _ in hud.states)
+
+
+def test_assistant_handles_hud_text_input() -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    hud = FakeHud()
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        SequenceSTT([]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+        hud=hud,
+    )
+
+    result = assistant.handle_text_input("what's the weather in beirut")
+
+    assert result.success
+    assert hud.transcripts == ["what's the weather in beirut"]
+    assert hud.intents and hud.intents[0][0] == "weather"
+
+
+def test_real_hud_queues_events() -> None:
+    from desktop_voice_assistant.hud import FloatingHud
+    from desktop_voice_assistant.models import RuntimeState
+    settings = Settings()
+    hud = FloatingHud(settings)
+    hud.on_state_change(RuntimeState.PLANNING, "test plan")
+    hud.on_transcript("hello world")
+    hud.on_intent("weather", {"location": "beirut"})
+    hud.on_result("fine weather", success=True, sources=[])
+    hud.on_history_event({"kind": "test", "summary": "tested HUD"})
+    hud.wake_detected()
+    
+    assert hud.queue.qsize() == 6
+
+
+def test_assistant_productivity_routing() -> None:
+    from desktop_voice_assistant.assistant import DesktopAssistant
+    from desktop_voice_assistant.intent_router import IntentRouter
+    from desktop_voice_assistant.actions import ActionExecutor
+    from desktop_voice_assistant.config import Settings
+    from pathlib import Path
+    
+    tts = FakeTTS()
+    history = FakeHistory()
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        SequenceSTT([]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
+    
+    assistant.productivity.clear_tasks()
+    
+    result = assistant.handle_text_input("add buy bread to my task list")
+    assert result.success
+    assert "Added" in result.message
+    
+    result_list = assistant.handle_text_input("list my tasks")
+    assert result_list.success
+    assert "buy bread" in result_list.message
+    
+    result_timer = assistant.handle_text_input("set a timer for 10 minutes")
+    assert result_timer.success
+    assert "Timer set" in result_timer.message
+
+    result_note = assistant.handle_text_input("take a note that meeting is at two")
+    assert result_note.success
+    assert "Note saved" in result_note.message
+
+    notes_file = Path.home() / ".desktop_voice_assistant" / "quick-notes.md"
+    assert notes_file.exists()
+    assert "meeting is at two" in notes_file.read_text(encoding="utf-8")
+    
+    assistant.productivity.stop()
+
+
+def test_assistant_browser_summarize(monkeypatch) -> None:
+    from desktop_voice_assistant.assistant import DesktopAssistant
+    from desktop_voice_assistant.intent_router import IntentRouter
+    from desktop_voice_assistant.actions import ActionExecutor
+    from desktop_voice_assistant.config import Settings
+    
+    tts = FakeTTS()
+    history = FakeHistory()
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        SequenceSTT([]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+    )
+    
+    monkeypatch.setattr(assistant.actions, "_get_active_page_text", lambda: "active web page content details")
+    
+    result = assistant.handle_text_input("summarize this page")
+    assert result.success
+    assert "mock" in result.message.lower() or "answer" in result.message.lower()
+    
+    assistant.productivity.stop()
+
+
+def test_llm_intent_routing_fallback() -> None:
+    class RoutingFakeLLM:
+        def __init__(self) -> None:
+            self.routed_queries = []
+
+        def answer(self, question: str) -> str:
+            return "answer"
+
+        def answer_with_context(self, question: str, context: str) -> str:
+            return "answer with context"
+
+        def route_intent(self, transcript: str):
+            self.routed_queries.append(transcript)
+            from desktop_voice_assistant.models import IntentResult
+            if "countdown" in transcript:
+                return IntentResult("set_timer", 0.95, {"duration": "10", "unit": "minutes"})
+            return None
+
+    tts = FakeTTS()
+    history = FakeHistory()
+    llm = RoutingFakeLLM()
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        UnsupportedSTT("make a countdown for ten minutes"),
+        tts,
+        llm,
+        FakeWeather(),
+        history,
+    )
+    result = assistant.listen_and_handle()
+    assert result.success
+    assert "timer set" in result.spoken_reply.lower()
+    assert llm.routed_queries == ["make a countdown for ten minutes"]
+    assistant.productivity.stop()
+
+
+
+

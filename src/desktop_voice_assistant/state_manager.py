@@ -24,6 +24,7 @@ class StateManager:
         RuntimeState.IDLE: {
             RuntimeState.WAKE_LISTENING,
             RuntimeState.CAPTURING_COMMAND,
+            RuntimeState.UNDERSTANDING,
             RuntimeState.TRANSCRIBING,
             RuntimeState.EXECUTING,
             RuntimeState.ERROR,
@@ -31,6 +32,7 @@ class StateManager:
         },
         RuntimeState.WAKE_LISTENING: {
             RuntimeState.CAPTURING_COMMAND,
+            RuntimeState.UNDERSTANDING,
             RuntimeState.IDLE,
             RuntimeState.EXECUTING,
             RuntimeState.ERROR,
@@ -63,6 +65,7 @@ class StateManager:
         RuntimeState.ARCHIVING_SOURCES: {RuntimeState.SPEAKING, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
         RuntimeState.AWAITING_CONFIRMATION: {
             RuntimeState.SPEAKING,
+            RuntimeState.UNDERSTANDING,
             RuntimeState.EXECUTING,
             RuntimeState.TRANSCRIBING,
             RuntimeState.IDLE,
@@ -89,6 +92,7 @@ class StateManager:
         },
         RuntimeState.AWAITING_FOLLOWUP: {
             RuntimeState.CAPTURING_COMMAND,
+            RuntimeState.UNDERSTANDING,
             RuntimeState.TRANSCRIBING,
             RuntimeState.WAKE_LISTENING,
             RuntimeState.IDLE,

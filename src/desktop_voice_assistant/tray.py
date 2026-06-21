@@ -18,9 +18,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class TrayApplication:
-    def __init__(self, assistant: DesktopAssistant, settings: Settings) -> None:
+    def __init__(self, assistant: DesktopAssistant, settings: Settings, hud=None) -> None:
         self.assistant = assistant
         self.settings = settings
+        self.hud = hud
         self.model_manager = ModelManager(settings)
         self._request_lock = threading.Lock()
         self._request_active = False
@@ -33,12 +34,18 @@ class TrayApplication:
             pystray.MenuItem(
                 "Wake word enabled", self._toggle_wake_word, checked=lambda item: self.settings.wake_word_enabled
             ),
+            pystray.MenuItem(
+                "HUD overlay enabled", self._toggle_hud, checked=lambda item: self.settings.hud_enabled
+            ),
+            pystray.MenuItem("Settings Panel", self._open_settings_ui),
             pystray.MenuItem("Open settings file", self._open_settings),
             pystray.MenuItem("Quit", self._quit),
         )
         self.wake_word_listener = WakeWordListener(settings, self.trigger_listen)
 
     def run(self) -> None:
+        if self.hud:
+            self.hud.start()
         if self.settings.wake_word_enabled:
             self.wake_word_listener.start()
             if self.wake_word_listener.ready:
@@ -52,15 +59,34 @@ class TrayApplication:
                 LOGGER.info("Ignoring listen trigger because a request is already active")
                 return
             self._request_active = True
+        if self.hud:
+            self.hud.wake_detected()
         threading.Thread(target=self._handle_request, daemon=True, name="assistant-request").start()
 
-    def _handle_request(self) -> None:
+    def submit_text_request(self, text: str) -> None:
+        payload = text.strip()
+        if not payload:
+            return
+        with self._request_lock:
+            if self._request_active:
+                LOGGER.info("Ignoring HUD text input because a request is already active")
+                return
+            self._request_active = True
+        threading.Thread(
+            target=self._handle_request,
+            kwargs={"text_input": payload},
+            daemon=True,
+            name="assistant-text-request",
+        ).start()
+
+    def _handle_request(self, text_input: str | None = None) -> None:
         self.wake_word_listener.stop()
-        self.assistant.tts.play_listen_cue()
-        self.assistant.set_runtime_state(RuntimeState.CAPTURING_COMMAND, reason="request capture started")
+        if text_input is None:
+            self.assistant.tts.play_listen_cue()
+            self.assistant.set_runtime_state(RuntimeState.CAPTURING_COMMAND, reason="request capture started")
         self._refresh_title()
         try:
-            result = self.assistant.listen_and_handle()
+            result = self.assistant.handle_text_input(text_input) if text_input is not None else self.assistant.listen_and_handle()
             LOGGER.info("Assistant result: success=%s message=%s", result.success, result.message)
             self._refresh_title()
         except Exception as exc:  # pragma: no cover - runtime integration issue
@@ -71,11 +97,22 @@ class TrayApplication:
         finally:
             with self._request_lock:
                 self._request_active = False
+            
+            # Preserve waiting states so they display in HUD and wait for follow-up turns
+            current_state = self.assistant.runtime_state
+            should_transition = current_state not in {
+                RuntimeState.AWAITING_CONFIRMATION,
+                RuntimeState.CLARIFYING,
+                RuntimeState.AWAITING_FOLLOWUP
+            }
+            
             if self.settings.wake_word_enabled:
                 self.wake_word_listener.start()
-                self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="wake word listener resumed")
+                if should_transition:
+                    self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="wake word listener resumed")
             else:
-                self.assistant.set_runtime_state(RuntimeState.IDLE, reason="request cycle completed")
+                if should_transition:
+                    self.assistant.set_runtime_state(RuntimeState.IDLE, reason="request cycle completed")
             self._refresh_title()
 
     def _listen_now(self, icon, item) -> None:
@@ -95,6 +132,73 @@ class TrayApplication:
             self.assistant.set_runtime_state(RuntimeState.IDLE, reason="wake word disabled")
         self._refresh_title()
 
+    def _toggle_hud(self, icon, item) -> None:
+        self.settings.hud_enabled = not self.settings.hud_enabled
+        self.settings.save()
+        if self.settings.hud_enabled:
+            if not self.hud:
+                from .hud import FloatingHud
+                self.hud = FloatingHud(self.settings)
+                self.hud.on_submit_text = self.submit_text_request
+                self.assistant.hud = self.hud
+                self.assistant.history.subscribe(self.hud.on_history_event)
+            self.hud.start()
+        else:
+            if self.hud:
+                self.hud.stop()
+
+    def _open_settings_ui(self, icon, item) -> None:
+        if self.hud and self.hud.root and self.hud.thread and self.hud.thread.is_alive():
+            self.hud.queue.put(self._launch_settings_on_hud)
+        else:
+            threading.Thread(target=self._launch_settings_standalone, daemon=True, name="settings-ui-thread").start()
+
+    def _launch_settings_on_hud(self) -> None:
+        if self.hud and self.hud.root:
+            from .settings_ui import SettingsPanel
+            import tkinter as tk
+            SettingsPanel(tk.Toplevel(self.hud.root), self.settings, on_save=self._on_settings_saved)
+
+    def _launch_settings_standalone(self) -> None:
+        import tkinter as tk
+        from .settings_ui import SettingsPanel
+        root = tk.Tk()
+        panel = SettingsPanel(root, self.settings, on_save=self._on_settings_saved)
+        panel.window.protocol("WM_DELETE_WINDOW", root.destroy)
+        root.mainloop()
+
+    def _on_settings_saved(self) -> None:
+        LOGGER.info("Settings saved via GUI panel, synchronizing runtime state...")
+        # Sync wake word
+        if self.settings.wake_word_enabled:
+            self.wake_word_listener.start()
+            self.assistant.set_runtime_state(RuntimeState.WAKE_LISTENING, reason="settings sync: wake word active")
+        else:
+            self.wake_word_listener.stop()
+            self.assistant.set_runtime_state(RuntimeState.IDLE, reason="settings sync: wake word disabled")
+
+        # Sync HUD
+        if self.settings.hud_enabled:
+            if not self.hud:
+                from .hud import FloatingHud
+                self.hud = FloatingHud(self.settings)
+                self.hud.on_submit_text = self.submit_text_request
+                self.assistant.hud = self.hud
+                self.assistant.history.subscribe(self.hud.on_history_event)
+            self.hud.start()
+        else:
+            if self.hud:
+                self.hud.stop()
+
+        # Update speech rate for TTS if supported
+        self.assistant.settings = self.settings
+        if hasattr(self.assistant.tts, "engine") and self.assistant.tts.engine:
+            try:
+                self.assistant.tts.engine.setProperty("rate", self.settings.speech_rate)
+            except Exception:
+                pass
+        self._refresh_title()
+
     def _open_settings(self, icon, item) -> None:
         Path(SETTINGS_PATH).touch(exist_ok=True)
         import os
@@ -103,6 +207,8 @@ class TrayApplication:
 
     def _quit(self, icon, item) -> None:
         self.wake_word_listener.stop()
+        if self.hud:
+            self.hud.stop()
         self.assistant.set_runtime_state(RuntimeState.SHUTTING_DOWN, reason="tray quit requested")
         self._refresh_title()
         self.icon.stop()
