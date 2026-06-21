@@ -35,13 +35,16 @@ STYLE_PROMPTS = {
 
 def build_system_prompt(assistant_name: str, assistant_style: str) -> str:
     style_prompt = STYLE_PROMPTS.get(assistant_style, STYLE_PROMPTS["stark-butler"])
-    base = (
+    return (
         f"You are {assistant_name}, a polished local desktop voice assistant. "
         f"{style_prompt}"
         "Do not roleplay as any copyrighted character. "
         "If the user asks for unsupported device control, say so plainly and offer the nearest supported action."
     )
-    return base + "\n\n" + CapabilityRegistry().format_for_prompt()
+
+
+def build_routing_system_prompt(assistant_name: str, assistant_style: str) -> str:
+    return build_system_prompt(assistant_name, assistant_style) + "\n\n" + CapabilityRegistry().format_for_prompt()
 
 
 class AssistantLLM(Protocol):
@@ -115,7 +118,7 @@ class OllamaAssistant:
             response_text = self.client.chat(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": self.system_prompt()},
+                    {"role": "system", "content": build_routing_system_prompt(self.assistant_name, self.assistant_style)},
                     {"role": "user", "content": prompt},
                 ],
                 options={"temperature": 0.0},
@@ -144,13 +147,11 @@ class GeminiAssistant:
         self.assistant_name = assistant_name
         self.assistant_style = assistant_style
         from google import genai
+
+        self.client = genai.Client(api_key=api_key)
         from google.genai import types
 
         self._types = types
-        self.client = genai.Client(
-            api_key=api_key,
-            http_options=types.HttpOptions(api_version="v1"),
-        )
 
     def update_settings(self, *, model: str | None = None, assistant_name: str | None = None, assistant_style: str | None = None) -> None:
         if model:

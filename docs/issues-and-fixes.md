@@ -50,6 +50,21 @@ This file tracks bugs, investigation outcomes, and whether each fix is quick, pa
 - Fix type:
   - `Permanent`
 
+### 45. Web research could crash on early exit and Gemini fallback was using the wrong API mode
+
+- Symptom:
+  - some web-search requests failed after source fetching with an invalid runtime-state transition
+  - Gemini fallback returned `400 INVALID_ARGUMENT` instead of answering complex prompts
+- Root cause:
+  - the state machine did not allow early research exits to move directly into reply speaking
+  - the Gemini client was forcing the stable `v1` API path, which did not accept the `systemInstruction` payload used by the SDK config
+- Resolution:
+  - allowed research sub-states such as `researching`, `fetching_sources`, and `ranking_sources` to transition into `speaking`
+  - switched the Gemini client back to the SDK default Developer API selection instead of forcing `v1`
+  - separated the normal assistant-answer prompt from the capability-registry routing prompt so Gemini answers no longer collapse into routing JSON
+- Fix type:
+  - `Permanent`
+
 ### 2. Runtime dependencies too heavy for one-shot install
 
 - Symptom:

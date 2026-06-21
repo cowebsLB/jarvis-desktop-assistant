@@ -25,3 +25,17 @@ def test_state_manager_rejects_invalid_transition() -> None:
 
     with pytest.raises(ValueError):
         manager.transition(RuntimeState.SPEAKING)
+
+
+def test_state_manager_allows_research_early_exit_to_speaking() -> None:
+    manager = StateManager()
+
+    manager.transition(RuntimeState.IDLE)
+    manager.transition(RuntimeState.TRANSCRIBING)
+    manager.transition(RuntimeState.UNDERSTANDING)
+    manager.transition(RuntimeState.PLANNING)
+    manager.transition(RuntimeState.RESEARCHING)
+    manager.transition(RuntimeState.FETCHING_SOURCES)
+    manager.transition(RuntimeState.SPEAKING)
+
+    assert manager.current == RuntimeState.SPEAKING

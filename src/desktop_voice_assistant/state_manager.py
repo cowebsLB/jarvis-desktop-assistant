@@ -58,9 +58,9 @@ class StateManager:
             RuntimeState.ERROR,
             RuntimeState.SHUTTING_DOWN,
         },
-        RuntimeState.RESEARCHING: {RuntimeState.FETCHING_SOURCES, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
-        RuntimeState.FETCHING_SOURCES: {RuntimeState.RANKING_SOURCES, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
-        RuntimeState.RANKING_SOURCES: {RuntimeState.SUMMARIZING_SOURCES, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
+        RuntimeState.RESEARCHING: {RuntimeState.FETCHING_SOURCES, RuntimeState.SPEAKING, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
+        RuntimeState.FETCHING_SOURCES: {RuntimeState.RANKING_SOURCES, RuntimeState.SPEAKING, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
+        RuntimeState.RANKING_SOURCES: {RuntimeState.SUMMARIZING_SOURCES, RuntimeState.SPEAKING, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
         RuntimeState.SUMMARIZING_SOURCES: {RuntimeState.ARCHIVING_SOURCES, RuntimeState.SPEAKING, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
         RuntimeState.ARCHIVING_SOURCES: {RuntimeState.SPEAKING, RuntimeState.ERROR, RuntimeState.SHUTTING_DOWN},
         RuntimeState.AWAITING_CONFIRMATION: {

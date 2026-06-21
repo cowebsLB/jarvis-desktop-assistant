@@ -1,8 +1,10 @@
 from desktop_voice_assistant.actions import ActionExecutor
 from desktop_voice_assistant.assistant import DesktopAssistant
+from desktop_voice_assistant.archive import AssistantArchive
 from desktop_voice_assistant.config import Settings
 from desktop_voice_assistant.intent_router import IntentRouter
 from desktop_voice_assistant.models import ActionResult, OpenTargetPreview, ResearchResult, ResearchSource, RuntimeState, TranscriptResult
+from desktop_voice_assistant.research import WebResearcher
 from desktop_voice_assistant.session import SessionSnapshot
 import pytest
 
@@ -134,6 +136,17 @@ class MultiSourceResearcher(FakeResearcher):
                 ResearchSource(title="Source Three", url="https://example.com/three", snippet="three"),
             ],
         )
+
+
+class ResearchLLM:
+    def answer(self, question: str) -> str:
+        return "answer"
+
+    def answer_with_context(self, question: str, context: str) -> str:
+        return "Short researched answer."
+
+    def route_intent(self, transcript: str):
+        return None
 
 
 def test_missing_stt_returns_spoken_error() -> None:
@@ -332,6 +345,34 @@ def test_followup_expires_and_does_not_reuse_previous_context() -> None:
     assert first.success
     assert second.success
     assert researcher.recall_calls == ["that"]
+
+
+def test_web_search_handles_fetch_failures_without_state_transition_crash(tmp_path) -> None:
+    tts = FakeTTS()
+    history = FakeHistory()
+    archive = AssistantArchive(tmp_path / "assistant.db")
+    researcher = WebResearcher(ResearchLLM(), archive, fetch_limit=2, archive_enabled=False)
+    researcher._search_duckduckgo = lambda query: [
+        ResearchSource(title="Source One", url="https://example.com/one", snippet="one"),
+    ]
+    researcher._fetch_page_text = lambda url: ""
+    assistant = DesktopAssistant(
+        Settings(),
+        IntentRouter(),
+        ActionExecutor(Settings()),
+        SequenceSTT([]),
+        tts,
+        FakeLLM(),
+        FakeWeather(),
+        history,
+        researcher,
+    )
+
+    result = assistant.handle_text_input("search the web for python testing")
+
+    assert result.success
+    assert "loaded poorly" in result.message.lower()
+    assert assistant.runtime_state == RuntimeState.AWAITING_FOLLOWUP
 
 
 def test_contextless_open_it_requests_clarification() -> None:

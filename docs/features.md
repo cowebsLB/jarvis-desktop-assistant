@@ -325,7 +325,7 @@ Current normalization handles:
 ### Verification Baseline
 
 - automated test suite currently passes:
-  - `121/121`
+  - `123/123`
 
 ## Implemented But Limited
 

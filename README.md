@@ -198,7 +198,7 @@ That check currently runs:
 - `ruff check src tests`
 - `pyproject-build`
 
-Current baseline: `121/121` passing tests.
+Current baseline: `123/123` passing tests.
 
 ## Local Data
 
