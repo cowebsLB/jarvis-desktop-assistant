@@ -79,12 +79,25 @@ All tasks in the "Now" cycle have been completed successfully:
 - [x] Add browser automation beyond simple search:
   - [x] click basic controls (browser_click_control via pywinauto or Ctrl+F fallback)
   - [x] fill simple forms (browser_fill_form via JSON or label:value pairs)
-- Add Windows UI automation for desktop apps beyond raw typing.
-- Add calculator workflow support inside opened apps when needed.
-- Add tests for Windows UI automation wrappers where possible.
+- [x] Add Windows UI automation for desktop apps beyond raw typing.
+  - [x] Read text from named accessibility controls (ui_read_control).
+  - [x] Set text in named accessibility controls (ui_set_control).
+  - [x] List named controls in a window (ui_window_info).
+  - [x] Scroll up/down inside a window (ui_scroll).
+- [x] Add calculator workflow support inside opened apps when needed.
+  - [x] CalcHelper: open/focus calc, type expression char-by-char, read result via clipboard.
+- [x] Add tests for Windows UI automation wrappers where possible.
+  - [x] Scroll dispatch (up/down, tick count).
+  - [x] read_control / window_info graceful failure without pywinauto.
+  - [x] calc_on_app clipboard read.
 
 ### Productivity Basics
 
+- [x] Reminders, timers, alarms with background thread scheduler.
+- [x] Task list (add, list, clear) with filesystem persistence.
+- [x] Quick note-taking appended to markdown log.
+- [x] Spoken voice notifications for alarms and reminders.
+- [x] Retrieval of active reminders/alarms/timers in QA context.
 
 ## Later
 

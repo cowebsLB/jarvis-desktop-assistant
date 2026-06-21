@@ -283,3 +283,104 @@ class SlackHelper:
         time.sleep(0.5)
         pyautogui.press("enter")
         return ActionResult(True, f"Navigated to Slack channel or user: {target}", f"Navigated to {target} in Slack.")
+
+
+class CalcHelper:
+    """Drive the Windows Calculator app to evaluate an expression and read the result."""
+
+    # Map of operator tokens to calculator key sequences
+    _OP_KEYS: dict[str, list[str]] = {
+        "+": ["+"],
+        "-": ["-"],
+        "*": ["*"],
+        "/": ["/"],
+        "%": ["%"],
+        "**": ["^"],  # Calculator uses ^ for power via keyboard
+    }
+
+    def __init__(self, executor) -> None:
+        self.executor = executor
+
+    def evaluate(self, expression: str) -> ActionResult:
+        """Open Calculator, type the expression, press = and return the displayed result."""
+        import subprocess as sp
+        import re
+
+        pyautogui = self.executor._get_pyautogui()
+
+        # 1. Launch or focus Calculator
+        focus_res = self.executor._focus_target("calculator")
+        if not focus_res.success:
+            sp.Popen(["calc.exe"], shell=False)
+            time.sleep(1.5)
+            self.executor._focus_target("calculator")
+        else:
+            time.sleep(0.5)
+
+        # 2. Clear any current value
+        pyautogui.press("escape")
+        time.sleep(0.2)
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(0.1)
+        pyautogui.press("delete")
+        time.sleep(0.2)
+
+        # 3. Tokenise expression and type it character by character
+        # Collapse multi-char operators like ** -> ^ and send digits/operators
+        expr = expression.strip()
+        # Replace ** with ^ for Windows Calc
+        expr = expr.replace("**", "^")
+        # Remove spaces
+        expr = re.sub(r"\s+", "", expr)
+
+        for char in expr:
+            if char.isdigit() or char in "().":
+                pyautogui.press(char)
+            elif char == "+":
+                pyautogui.press("+")
+            elif char == "-":
+                pyautogui.press("-")
+            elif char == "*":
+                pyautogui.hotkey("shift", "8")  # * on most keyboards
+            elif char == "/":
+                pyautogui.press("/")
+            elif char == "^":
+                pyautogui.hotkey("shift", "6")  # ^ on most keyboards
+            elif char == "%":
+                pyautogui.hotkey("shift", "5")
+            time.sleep(0.05)
+
+        # 4. Press = to evaluate
+        pyautogui.press("=")
+        time.sleep(0.5)
+
+        # 5. Copy the result to clipboard via Ctrl+C
+        pyautogui.hotkey("ctrl", "c")
+        time.sleep(0.3)
+
+        # 6. Read clipboard
+        import subprocess
+        clip_result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
+            capture_output=True, text=True, check=False,
+        )
+        result_text = clip_result.stdout.strip() if clip_result.returncode == 0 else ""
+
+        if result_text:
+            msg = f"Calculator result for '{expression}': {result_text}"
+            LOGGER.info(msg)
+            return ActionResult(True, msg, f"The result is {result_text}.")
+        # Fallback — try pywinauto to read the display directly
+        try:
+            import pywinauto
+            app = pywinauto.Application(backend="uia").connect(title_re=".*[Cc]alculator.*", timeout=2)
+            window = app.top_window()
+            # Result display control has AutomationId "CalculatorResults" on Win10/11
+            display = window.child_window(auto_id="CalculatorResults", timeout=1)
+            result_text = display.window_text().replace("Display is", "").strip()
+        except Exception:
+            result_text = ""
+
+        if result_text:
+            return ActionResult(True, f"Calculator result: {result_text}", f"The result is {result_text}.")
+        return ActionResult(False, "Could not read Calculator result.", "I couldn't read the calculator display.")

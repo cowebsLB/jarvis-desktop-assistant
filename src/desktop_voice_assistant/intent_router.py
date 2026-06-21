@@ -133,6 +133,27 @@ class IntentRouter:
         if match := re.search(r"\bclick\s+(?:button\s+)?(.+?)\s+in\s+(.+)\b", normalized):
             return IntentResult("ui_click_control", 0.95, {"control_name": match.group(1).strip(), "window_title": match.group(2).strip()})
 
+        # Extended Windows UI automation
+        if match := re.search(r"\bread\s+(?:the\s+)?(?:text\s+(?:from|in|of)\s+)?(?:control\s+)?(.+?)\s+(?:in|from)\s+(.+)$", normalized):
+            return IntentResult("ui_read_control", 0.93, {"control_name": match.group(1).strip(), "window_title": match.group(2).strip()})
+        if match := re.search(r"\b(?:type|set|write)\s+(.+?)\s+(?:in|into)\s+(?:the\s+)?(?:field|box|input|control)\s+(.+?)\s+in\s+(.+)$", normalized):
+            return IntentResult("ui_set_control", 0.93, {"text": match.group(1).strip(), "control_name": match.group(2).strip(), "window_title": match.group(3).strip()})
+        if match := re.search(r"\b(?:what|list|show)\s+(?:controls?|fields?|buttons?)\s+(?:are\s+)?(?:in|on)\s+(.+)$", normalized):
+            return IntentResult("ui_window_info", 0.9, {"window_title": match.group(1).strip()})
+        if match := re.search(r"\bscroll\s+(up|down)\s+(?:in\s+)?(?:(\d+)\s+times?\s+in\s+)?(.+)$", normalized):
+            return IntentResult("ui_scroll", 0.93, {"direction": match.group(1), "amount": match.group(2) or "3", "window_title": match.group(3).strip()})
+        if match := re.search(r"\bscroll\s+(up|down)\s+(?:(\d+)\s+times?\s+)?in\s+(.+)$", normalized):
+            return IntentResult("ui_scroll", 0.93, {"direction": match.group(1), "amount": match.group(2) or "3", "window_title": match.group(3).strip()})
+
+        # Calculator app workflow (use app GUI, not local eval)
+        # Only route here when the user says 'compute'/'work out' explicitly, or
+        # 'open/launch calculator and calculate' — bare 'calculate X on the calculator app'
+        # is handled by _extract_calculation_expression (which strips 'on the calculator app').
+        if match := re.search(r"\b(?:compute|work\s+out)\s+(.+?)\s+(?:in|on|using)\s+(?:the\s+)?calculator(?:\s+app)?\b", normalized):
+            return IntentResult("calc_on_app", 0.97, {"expression": match.group(1).strip()})
+        if match := re.search(r"\b(?:open|launch)\s+calculator\s+and\s+(?:calculate|compute|evaluate)\s+(.+)$", normalized):
+            return IntentResult("calc_on_app", 0.97, {"expression": match.group(1).strip()})
+
         # Spotify controls
         if re.search(r"\b(?:pause|resume|play\s+pause|toggle\s+playback)\s+(?:spotify|music|song)\b", normalized) or normalized in {"pause spotify", "play spotify", "pause music", "resume music", "play pause"}:
             return IntentResult("spotify_play_pause", 0.95, {})

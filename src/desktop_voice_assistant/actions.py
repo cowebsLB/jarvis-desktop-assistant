@@ -19,7 +19,7 @@ from .config import APP_DIR, Settings
 from .filesystem_actions import DesktopControl
 from .models import ActionResult, IntentResult, OpenTargetPreview
 from .response_style import ResponseStyle
-from .app_helpers import NotepadHelper, BrowserHelper, VSCodeHelper, SpotifyHelper, DiscordHelper, SlackHelper
+from .app_helpers import NotepadHelper, BrowserHelper, VSCodeHelper, SpotifyHelper, DiscordHelper, SlackHelper, CalcHelper
 from .ui_control import UIController
 
 
@@ -39,6 +39,7 @@ class ActionExecutor:
         self.spotify_helper = SpotifyHelper(self)
         self.discord_helper = DiscordHelper(self)
         self.slack_helper = SlackHelper(self)
+        self.calc_helper = CalcHelper(self)
         self._scanned_apps: dict[str, str] = {}
         
         import sys
@@ -105,6 +106,16 @@ class ActionExecutor:
             return self.ui_controller.write_to_coordinate(int(intent.slots["x"]), int(intent.slots["y"]), intent.slots["text"])
         if intent.intent == "ui_click_control":
             return self.ui_controller.click_control(intent.slots["window_title"], intent.slots["control_name"])
+        if intent.intent == "ui_read_control":
+            return self.ui_controller.read_text_from_control(intent.slots["window_title"], intent.slots["control_name"])
+        if intent.intent == "ui_set_control":
+            return self.ui_controller.set_text_in_control(intent.slots["window_title"], intent.slots["control_name"], intent.slots["text"])
+        if intent.intent == "ui_window_info":
+            return self.ui_controller.get_window_info(intent.slots["window_title"])
+        if intent.intent == "ui_scroll":
+            return self.ui_controller.scroll_in_window(intent.slots["window_title"], intent.slots.get("direction") or "down", int(intent.slots.get("amount") or 3))
+        if intent.intent == "calc_on_app":
+            return self.calc_helper.evaluate(intent.slots["expression"])
         if intent.intent == "spotify_play_pause":
             return self.spotify_helper.play_pause()
         if intent.intent == "spotify_next_track":

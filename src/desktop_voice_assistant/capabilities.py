@@ -84,6 +84,11 @@ class CapabilityRegistry:
             ("discord_navigate", "Navigate to a channel, server, or user in Discord.", [("target", "Channel or user name to navigate to.")], ["go to discord channel general"]),
             ("slack_mute", "Toggle mute/unmute on Slack.", [], ["mute slack", "unmute slack"]),
             ("slack_navigate", "Navigate to a channel or user in Slack.", [("target", "Channel or user name to navigate to.")], ["go to slack channel engineering"]),
+            ("ui_read_control", "Read the text value of a named accessibility control in a desktop window.", [("window_title", "Window title."), ("control_name", "Control name to read.")], ["read the text from address bar in notepad"]),
+            ("ui_set_control", "Type text into a named accessibility control in a desktop window.", [("window_title", "Window title."), ("control_name", "Control name."), ("text", "Text to type.")], ["type hello into the field name in my app"]),
+            ("ui_window_info", "List the named controls in a desktop window.", [("window_title", "Window title.")], ["what controls are in notepad"]),
+            ("ui_scroll", "Scroll up or down inside a window.", [("window_title", "Window title."), ("direction", "up or down."), ("amount", "Number of scroll ticks.", False)], ["scroll down in notepad"]),
+            ("calc_on_app", "Open the Calculator app, evaluate an expression, and read the result back.", [("expression", "Mathematical expression to evaluate.")], ["calculate 15 times 7 on the calculator"]),
         ]
 
         for intent, description, slot_definitions, examples in definitions:

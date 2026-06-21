@@ -641,3 +641,123 @@ def test_browser_fill_form_empty_data(monkeypatch) -> None:
 
     result = action.execute(IntentResult("browser_fill_form", 0.9, {"data": ""}))
     assert not result.success
+
+
+# ── UIController extended methods ─────────────────────────────────────────────
+
+def test_ui_scroll_dispatch(monkeypatch) -> None:
+    """ui_scroll intent focuses window and calls pyautogui.scroll."""
+    focused: list[str] = []
+    scrolled: list[int] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def scroll(self, clicks): scrolled.append(clicks)
+        def hotkey(self, *keys): pass
+        def press(self, key): pass
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("ui_scroll", 0.93, {"window_title": "notepad", "direction": "down", "amount": "5"}))
+    assert result.success
+    assert "notepad" in focused
+    assert scrolled == [5]
+
+
+def test_ui_scroll_up_dispatch(monkeypatch) -> None:
+    """ui_scroll direction=up sends negative scroll ticks."""
+    scrolled: list[int] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def scroll(self, clicks): scrolled.append(clicks)
+        def hotkey(self, *keys): pass
+        def press(self, key): pass
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: ActionResult(True, "ok", "ok"))
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+
+    result = action.execute(IntentResult("ui_scroll", 0.93, {"window_title": "notepad", "direction": "up", "amount": "2"}))
+    assert result.success
+    assert scrolled == [-2]
+
+
+def test_ui_read_control_no_pywinauto(monkeypatch) -> None:
+    """ui_read_control returns failure message when pywinauto is missing."""
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: ActionResult(True, "ok", "ok"))
+
+    # builtins.__import__ is patched so pywinauto raises ImportError
+    original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+
+    import builtins
+    original = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "pywinauto":
+            raise ImportError("pywinauto not installed")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+    result = action.execute(IntentResult("ui_read_control", 0.93, {"window_title": "notepad", "control_name": "Edit"}))
+    assert not result.success
+    assert "pywinauto" in result.message.lower() or "not installed" in result.message.lower()
+
+
+def test_ui_window_info_no_pywinauto(monkeypatch) -> None:
+    """ui_window_info returns failure message when pywinauto is missing."""
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: ActionResult(True, "ok", "ok"))
+
+    import builtins
+    original = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "pywinauto":
+            raise ImportError("pywinauto not installed")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+    result = action.execute(IntentResult("ui_window_info", 0.9, {"window_title": "notepad"}))
+    assert not result.success
+    assert "pywinauto" in result.message.lower() or "not installed" in result.message.lower()
+
+
+def test_calc_on_app_dispatch(monkeypatch) -> None:
+    """calc_on_app focuses Calculator, types expression, reads clipboard result."""
+    focused: list[str] = []
+    pressed: list[str] = []
+    hotkeys: list[str] = []
+
+    class FakePyauto:
+        FAILSAFE = False
+        def press(self, key): pressed.append(key)
+        def hotkey(self, *keys): hotkeys.append("-".join(keys))
+        def write(self, text, interval=0): pass
+
+    # Fake clipboard returning a result
+    import subprocess as real_subprocess
+
+    class FakeCompletedProcess:
+        returncode = 0
+        stdout = "42"
+
+    def fake_run(cmd, **kwargs):
+        return FakeCompletedProcess()
+
+    action = ActionExecutor(Settings())
+    monkeypatch.setattr(action, "_focus_target", lambda t: (focused.append(t), ActionResult(True, "ok", "ok"))[1])
+    monkeypatch.setattr(action, "_get_pyautogui", lambda: FakePyauto())
+    monkeypatch.setattr(real_subprocess, "run", fake_run)
+
+    result = action.execute(IntentResult("calc_on_app", 0.97, {"expression": "6*7"}))
+    assert result.success
+    assert "42" in result.message
+    assert "calculator" in focused
+    # = should have been pressed
+    assert "=" in pressed

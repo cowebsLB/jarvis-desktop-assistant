@@ -319,3 +319,50 @@ def test_route_browser_click_control() -> None:
 def test_route_browser_fill_form() -> None:
     result = IntentRouter().route("fill the form username: myuser in the browser")
     assert result.intent == "browser_fill_form"
+
+
+def test_route_ui_read_control() -> None:
+    result = IntentRouter().route("read the text from address bar in notepad")
+    assert result.intent == "ui_read_control"
+    assert "address bar" in result.slots["control_name"]
+    assert "notepad" in result.slots["window_title"]
+
+
+def test_route_ui_set_control() -> None:
+    result = IntentRouter().route("type hello into the field name in my app")
+    assert result.intent == "ui_set_control"
+    assert result.slots["text"] == "hello"
+    assert "name" in result.slots["control_name"]
+    assert "my app" in result.slots["window_title"]
+
+
+def test_route_ui_window_info() -> None:
+    result = IntentRouter().route("what controls are in notepad")
+    assert result.intent == "ui_window_info"
+    assert "notepad" in result.slots["window_title"]
+
+
+def test_route_ui_scroll_down() -> None:
+    result = IntentRouter().route("scroll down in notepad")
+    assert result.intent == "ui_scroll"
+    assert result.slots["direction"] == "down"
+    assert "notepad" in result.slots["window_title"]
+
+
+def test_route_ui_scroll_up() -> None:
+    result = IntentRouter().route("scroll up in chrome")
+    assert result.intent == "ui_scroll"
+    assert result.slots["direction"] == "up"
+    assert "chrome" in result.slots["window_title"]
+
+
+def test_route_calc_on_app() -> None:
+    result = IntentRouter().route("compute 15 times 7 on the calculator")
+    assert result.intent == "calc_on_app"
+    assert "15" in result.slots["expression"] or "times" in result.slots["expression"]
+
+
+def test_route_calc_on_app_launch() -> None:
+    result = IntentRouter().route("open calculator and calculate 100 plus 50")
+    assert result.intent == "calc_on_app"
+    assert "100" in result.slots["expression"]
